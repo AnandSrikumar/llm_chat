@@ -8,8 +8,7 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import (COMPACTION_PROMPT, NAME_GENERATOR_PROMPT,
-                              SYSTEM_PROMPT)
+from app.core.prompts import COMPACTION_PROMPT, NAME_GENERATOR_PROMPT, SYSTEM_PROMPT
 
 logger = get_logger(__name__)
 
@@ -37,8 +36,8 @@ async def get_chat_meta(pg: PgClient, conversation_id: int | None):
         raise ValueError("Conversation not found")
     logger.info("Conversation metadata loaded (conversation_id=%s)", conversation_id)
     result = dict(result)
-    result["messages"] = json.loads(result.get("messages", '[]'))
-    result["compaction"] = json.loads(result.get("compaction", '[]'))
+    result["messages"] = json.loads(result.get("messages", "[]"))
+    result["compaction"] = json.loads(result.get("compaction", "[]"))
     return ChatMeta(**result)
 
 
@@ -144,7 +143,7 @@ async def generate_message(
     conversation_id: int,
     chat_meta: ChatMeta,
     max_tokens: int = 1024,
-    lock: asyncio.Lock = None
+    lock: asyncio.Lock = None,
 ) -> AsyncGenerator[str, None]:
     logger.info(
         "Requesting streamed LLM response (conversation_id=%s, model=%s, max_tokens=%s)",

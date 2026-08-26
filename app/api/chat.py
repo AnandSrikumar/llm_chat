@@ -3,14 +3,26 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app.core.deps import (COMPACT_THRESHOLD, LLM, LLM_MODEL,
-                           TIKTOKEN_ENCODING, USER, Pg)
+from app.core.deps import (
+    COMPACT_THRESHOLD,
+    LLM,
+    LLM_MODEL,
+    SPLITTERS,
+    TIKTOKEN_ENCODING,
+    USER,
+    Pg,
+)
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
-from app.service.chat_service import (compact_messages, count_tokens,
-                                      create_chat_name, create_conversation,
-                                      generate_message, get_chat_meta,
-                                      get_conversation_lock)
+from app.service.chat_service import (
+    compact_messages,
+    count_tokens,
+    create_chat_name,
+    create_conversation,
+    generate_message,
+    get_chat_meta,
+    get_conversation_lock,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -25,15 +37,23 @@ async def chat(
     user: USER,
     compact_threshold: COMPACT_THRESHOLD,
     tiktoken_encoding: TIKTOKEN_ENCODING,
+    splitters: SPLITTERS,
     file: Annotated[UploadFile | None, File()] = None,
     max_tokens: int | None = 1024,
     chat_id: int | None = None,
 ):
     if chat_id is None:
         logger.info("Creating a new conversation for user_id=%s", user["id"])
-        name = await create_chat_name(llm, llm_model, [{"role": "user", "content": message}])
+        name = await create_chat_name(
+            llm, llm_model, [{"role": "user", "content": message}]
+        )
         chat_id = await create_conversation(user["id"], name, pg)
-        logger.info("Created conversation_id=%s, convo_name=%s for user_id=%s", chat_id, name, user["id"])
+        logger.info(
+            "Created conversation_id=%s, convo_name=%s for user_id=%s",
+            chat_id,
+            name,
+            user["id"],
+        )
     lock = get_conversation_lock(chat_id)
     if lock.locked():
         raise LLMGenerationError()

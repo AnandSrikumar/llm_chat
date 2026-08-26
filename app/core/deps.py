@@ -9,6 +9,7 @@ from tiktoken import Encoding
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
+from app.core.splitters import Splitters
 
 logger = get_logger(__name__)
 
@@ -84,6 +85,10 @@ def get_tiktoken(request: Request):
     return request.app.state.tiktoken_encoding
 
 
+def get_splitters(request: Request):
+    return request.app.state.splitters
+
+
 Pg = Annotated[PgClient, Depends(get_pg)]
 LLM = Annotated[AsyncOpenAI, Depends(get_llm)]
 LLM_MODEL = Annotated[str, Depends(get_llm_model)]
@@ -92,3 +97,4 @@ COMPACT_THRESHOLD = Annotated[int, Depends(get_compact_thres)]
 JWT_DEP = Annotated[JWT, Depends(get_jwt)]
 PASSWORD_MANAGER = Annotated[PasswordManager, Depends(get_password_manager)]
 TIKTOKEN_ENCODING = Annotated[Encoding, Depends(get_tiktoken)]
+SPLITTERS = Annotated[Splitters, Depends(get_splitters)]

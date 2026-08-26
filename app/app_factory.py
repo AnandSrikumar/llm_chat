@@ -7,13 +7,47 @@ from transformers import AutoTokenizer
 from app.api.auth import router as auth_router
 from app.api.chat import router
 from app.core.config import Settings
-from app.core.exceptions import (LLMGenerationError,
-                                 llm_generation_error_handler)
+from app.core.exceptions import (
+    LLMGenerationError,
+    llm_generation_error_handler,
+    unsupported_error_handler,
+    UnsupportedFormatError,
+)
 from app.core.log import get_logger, initialize_logging, shutdown_logging
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
+from app.core.splitters import create_splitters
 
 logger = get_logger(__name__)
+
+
+def exception_hanlders(app: FastAPI):
+    app.add_exception_handler(
+        LLMGenerationError,
+        llm_generation_error_handler,
+    )
+    app.add_exception_handler(UnsupportedFormatError, unsupported_error_handler)
+
+
+def include_routers(app: FastAPI):
+    app.include_router(router)
+    app.include_router(auth_router)
+
+
+def app_state(app: FastAPI, settings: Settings):
+    app.state.settings = settings
+    pwd = PasswordManager()
+    jwt = JWT(
+        settings.SECRET_KEY,
+        settings.ALGORITHM,
+        settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+    )
+    app.state.pwd = pwd
+    app.state.jwt = jwt
+    app.state.tiktoken_encoding = AutoTokenizer.from_pretrained(
+        settings.ollama_tokenizer
+    )
+    app.state.splitters = create_splitters(settings.chunk_size, settings.chunk_overlap)
 
 
 def create_app(settings: Settings):
@@ -37,18 +71,7 @@ def create_app(settings: Settings):
             await pg.connect()
             app.state.pg = pg
             app.state.llm = llm
-            app.state.settings = settings
-            pwd = PasswordManager()
-            jwt = JWT(
-                settings.SECRET_KEY,
-                settings.ALGORITHM,
-                settings.ACCESS_TOKEN_EXPIRE_MINUTES,
-            )
-            app.state.pwd = pwd
-            app.state.jwt = jwt
-            app.state.tiktoken_encoding = AutoTokenizer.from_pretrained(
-                settings.ollama_tokenizer
-            )
+
             logger.info("LLM Chat application startup completed")
             yield
         except Exception:
@@ -67,11 +90,7 @@ def create_app(settings: Settings):
                 shutdown_logging()
 
     app = FastAPI(description="LLM Chat", lifespan=lifespan)
-    app.include_router(router)
-    app.include_router(auth_router)
-
-    app.add_exception_handler(
-        LLMGenerationError,
-        llm_generation_error_handler,
-    )
+    app_state(app, settings)
+    include_routers(app)
+    exception_hanlders(app)
     return app
