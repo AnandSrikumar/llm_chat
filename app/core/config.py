@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _TOKENIZER_MAP = {
     "qwen3:4b": "Qwen/Qwen3-4B",
     "ministral:3b": "mistralai/Ministral-3-3B-Instruct-2512",
+    "ministral-3:3b": "mistralai/Ministral-3-3B-Instruct-2512",
 }
 
 

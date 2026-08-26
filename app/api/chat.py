@@ -31,9 +31,9 @@ async def chat(
 ):
     if chat_id is None:
         logger.info("Creating a new conversation for user_id=%s", user["id"])
-        name = await create_chat_name(llm, llm_model, [message])
+        name = await create_chat_name(llm, llm_model, [{"role": "user", "content": message}])
         chat_id = await create_conversation(user["id"], name, pg)
-        logger.info("Created conversation_id=%s for user_id=%s", chat_id, user["id"])
+        logger.info("Created conversation_id=%s, convo_name=%s for user_id=%s", chat_id, name, user["id"])
     lock = get_conversation_lock(chat_id)
     if lock.locked():
         raise LLMGenerationError()
@@ -67,9 +67,9 @@ async def chat(
                 llm, llm_model, chat_meta.compaction
             )
         logger.info("Starting response stream (conversation_id=%s)", chat_id)
-    finally:
-        await lock.release()
+    except Exception:
+        lock.release()
     return StreamingResponse(
-        generate_message(llm, llm_model, pg, chat_id, chat_meta, max_tokens),
+        generate_message(llm, llm_model, pg, chat_id, chat_meta, max_tokens, lock),
         media_type="text/event-stream",
     )

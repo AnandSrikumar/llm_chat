@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     owner_id BIGINT NOT NULL,
     convo_name TEXT NOT NULL,
     messages JSONB NOT NULL DEFAULT '[]'::jsonb,
-    compaction JSONB,
+    compaction JSONB NOT NULL DEFAULT '[]'::jsonb,
 
     CONSTRAINT fk_conversations_owner
         FOREIGN KEY (owner_id)

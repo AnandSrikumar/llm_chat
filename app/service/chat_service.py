@@ -37,8 +37,8 @@ async def get_chat_meta(pg: PgClient, conversation_id: int | None):
         raise ValueError("Conversation not found")
     logger.info("Conversation metadata loaded (conversation_id=%s)", conversation_id)
     result = dict(result)
-    result["messages"] = json.loads(result["messages"])
-    result["compaction"] = json.loads(result["compaction"])
+    result["messages"] = json.loads(result.get("messages", '[]'))
+    result["compaction"] = json.loads(result.get("compaction", '[]'))
     return ChatMeta(**result)
 
 
@@ -66,8 +66,8 @@ async def create_conversation(user_id: int, chat_name: str, pg: PgClient):
     logger.info("Persisting new conversation (user_id=%s)", user_id)
     query = """
         insert into conversations
-        (owner_id, convo_name, messages, compaction) values 
-        ($1, $2,  $3::jsonb, $4::jsonb) returning id
+        (owner_id, convo_name) values 
+        ($1, $2) returning id
     """
     res = await pg.fetchone(
         query,
@@ -144,6 +144,7 @@ async def generate_message(
     conversation_id: int,
     chat_meta: ChatMeta,
     max_tokens: int = 1024,
+    lock: asyncio.Lock = None
 ) -> AsyncGenerator[str, None]:
     logger.info(
         "Requesting streamed LLM response (conversation_id=%s, model=%s, max_tokens=%s)",
@@ -199,6 +200,9 @@ async def generate_message(
             "Chat response generation failed (conversation_id=%s)", conversation_id
         )
         raise
+    finally:
+        if lock is not None:
+            lock.release()
 
 
 def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
