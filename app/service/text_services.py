@@ -32,8 +32,6 @@ def clean_text_for_bm25(text: str) -> str:
 
 def clean_chunks_for_bm25(chunks: list[Document]) -> list[Document]:
     for chunk in chunks:
-        chunk.metadata["bm25_text"] = clean_text_for_bm25(
-            chunk.page_content
-        )
+        chunk.metadata["bm25_text"] = clean_text_for_bm25(chunk.page_content)
 
     return chunks
