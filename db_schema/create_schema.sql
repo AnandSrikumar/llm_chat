@@ -20,6 +20,26 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS conversations (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    owner_id BIGINT NOT NULL,
+    convo_name TEXT NOT NULL,
+    messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+    compaction JSONB NOT NULL DEFAULT '[]'::jsonb,
+
+    CONSTRAINT fk_conversations_owner
+        FOREIGN KEY (owner_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_messages_array
+        CHECK (jsonb_typeof(messages) = 'array')
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversations_owner_id
+    ON conversations(owner_id);
+
+
 
 -- ------------------------------------------------------------
 -- Files
@@ -27,20 +47,20 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS files (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    owner_id BIGINT NOT NULL,
+    conversation_id BIGINT NOT NULL,
     mime_type TEXT NOT NULL,
     size BIGINT NOT NULL CHECK (size >= 0),
     file_name_original TEXT NOT NULL,
     file_name TEXT NOT NULL UNIQUE,
 
-    CONSTRAINT fk_files_owner
-        FOREIGN KEY (owner_id)
-        REFERENCES users(id)
+    CONSTRAINT fk_files_convo
+        FOREIGN KEY (conversation_id)
+        REFERENCES conversations(id)
         ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_files_owner_id
-    ON files(owner_id);
+CREATE INDEX IF NOT EXISTS idx_files_convo_id
+    ON files(conversation_id);
 
 
 -- ------------------------------------------------------------
@@ -116,25 +136,6 @@ CREATE TABLE IF NOT EXISTS vectors (
 -- ------------------------------------------------------------
 -- Conversations
 -- ------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS conversations (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    owner_id BIGINT NOT NULL,
-    convo_name TEXT NOT NULL,
-    messages JSONB NOT NULL DEFAULT '[]'::jsonb,
-    compaction JSONB NOT NULL DEFAULT '[]'::jsonb,
-
-    CONSTRAINT fk_conversations_owner
-        FOREIGN KEY (owner_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT chk_messages_array
-        CHECK (jsonb_typeof(messages) = 'array')
-);
-
-CREATE INDEX IF NOT EXISTS idx_conversations_owner_id
-    ON conversations(owner_id);
 
 
 -- ------------------------------------------------------------
