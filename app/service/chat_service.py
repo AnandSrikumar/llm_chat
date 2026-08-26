@@ -1,17 +1,19 @@
+import asyncio
+import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
-import json
 
+from openai import AsyncOpenAI
 from transformers import PreTrainedTokenizerBase
 
-from app.core.prompts import COMPACTION_PROMPT, SYSTEM_PROMPT
-from openai import AsyncOpenAI
-
-from app.core.pg_client import PgClient
 from app.core.log import get_logger
-from app.core.prompts import NAME_GENERATOR_PROMPT
+from app.core.pg_client import PgClient
+from app.core.prompts import (COMPACTION_PROMPT, NAME_GENERATOR_PROMPT,
+                              SYSTEM_PROMPT)
 
 logger = get_logger(__name__)
+
+CONVERSATION_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 @dataclass
@@ -35,8 +37,8 @@ async def get_chat_meta(pg: PgClient, conversation_id: int | None):
         raise ValueError("Conversation not found")
     logger.info("Conversation metadata loaded (conversation_id=%s)", conversation_id)
     result = dict(result)
-    result['messages'] = json.loads(result['messages'])
-    result['compaction'] = json.loads(result['compaction'])
+    result["messages"] = json.loads(result["messages"])
+    result["compaction"] = json.loads(result["compaction"])
     return ChatMeta(**result)
 
 
@@ -60,7 +62,7 @@ async def create_chat_name(llm: AsyncOpenAI, model_name: str, message: str):
     return res.output_text
 
 
-async def create_conversation(user_id: int, chat_meta: ChatMeta, pg: PgClient):
+async def create_conversation(user_id: int, chat_name: str, pg: PgClient):
     logger.info("Persisting new conversation (user_id=%s)", user_id)
     query = """
         insert into conversations
@@ -70,9 +72,7 @@ async def create_conversation(user_id: int, chat_meta: ChatMeta, pg: PgClient):
     res = await pg.fetchone(
         query,
         user_id,
-        chat_meta.convo_name,
-        json.dumps(chat_meta.messages),
-        json.dumps(chat_meta.compaction),
+        chat_name,
     )
     conversation_id = dict(res)["id"]
     logger.info(
@@ -199,3 +199,13 @@ async def generate_message(
             "Chat response generation failed (conversation_id=%s)", conversation_id
         )
         raise
+
+
+def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
+    lock = CONVERSATION_LOCKS.get(conversation_id)
+
+    if lock is None:
+        lock = asyncio.Lock()
+        CONVERSATION_LOCKS[conversation_id] = lock
+
+    return lock

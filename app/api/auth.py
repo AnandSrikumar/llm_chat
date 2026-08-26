@@ -2,8 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Form, HTTPException, status
 
-from app.core.deps import Pg, PASSWORD_MANAGER, JWT_DEP
-
+from app.core.deps import JWT_DEP, PASSWORD_MANAGER, Pg
 from app.core.log import get_logger
 
 logger = get_logger(__name__)

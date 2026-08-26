@@ -6,9 +6,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from openai import AsyncOpenAI
 from tiktoken import Encoding
 
+from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
-from app.core.log import get_logger
 
 logger = get_logger(__name__)
 

@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from openai import AsyncOpenAI
 from transformers import AutoTokenizer
 
-from app.api.chat import router
 from app.api.auth import router as auth_router
+from app.api.chat import router
 from app.core.config import Settings
+from app.core.exceptions import (LLMGenerationError,
+                                 llm_generation_error_handler)
 from app.core.log import get_logger, initialize_logging, shutdown_logging
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
@@ -67,4 +69,9 @@ def create_app(settings: Settings):
     app = FastAPI(description="LLM Chat", lifespan=lifespan)
     app.include_router(router)
     app.include_router(auth_router)
+
+    app.add_exception_handler(
+        LLMGenerationError,
+        llm_generation_error_handler,
+    )
     return app
