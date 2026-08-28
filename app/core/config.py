@@ -28,6 +28,9 @@ class Settings(BaseSettings):
 
     compact_threshold: int = 15000
 
+    storage_type: str = "local"
+    storage_root: str = "./data"
+
     SECRET_KEY: str = "EGlS6s24wUVdfXjVkh3U5Yktw9brjEIFWD5nRgK2KXk"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60

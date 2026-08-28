@@ -9,10 +9,7 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
-
--- ------------------------------------------------------------
--- Users
--- ------------------------------------------------------------
+-- USERS AND CONVO
 
 CREATE TABLE IF NOT EXISTS users (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -41,119 +38,75 @@ CREATE INDEX IF NOT EXISTS idx_conversations_owner_id
 
 
 
--- ------------------------------------------------------------
--- Files
--- ------------------------------------------------------------
+-- FILES
+
+create table if not exists file_storage_types(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name TEXT not null UNIQUE
+);
 
 CREATE TABLE IF NOT EXISTS files (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+
     conversation_id BIGINT NOT NULL,
+
+    filename_original TEXT NOT NULL,
+    filename_generated TEXT NOT NULL,
+
+    file_content_hash TEXT NOT NULL,
+
     mime_type TEXT NOT NULL,
     size BIGINT NOT NULL CHECK (size >= 0),
-    file_name_original TEXT NOT NULL,
-    file_name TEXT NOT NULL UNIQUE,
 
-    CONSTRAINT fk_files_convo
+    file_path TEXT NOT NULL,
+
+    file_storage_type BIGINT NOT NULL,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_files_conversation
         FOREIGN KEY (conversation_id)
         REFERENCES conversations(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_file_storage
+        FOREIGN KEY (file_storage_type)
+        REFERENCES file_storage_types(id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_files_convo_id
+CREATE INDEX IF NOT EXISTS idx_files_conversation_id
     ON files(conversation_id);
 
+INSERT INTO file_storage_types (name)
+VALUES
+    ('local'),
+    ('s3'),
+    ('azure')
+ON CONFLICT (name) DO NOTHING;
 
--- ------------------------------------------------------------
--- Chunk configuration
--- ------------------------------------------------------------
+GRANT SELECT
+ON file_storage_types
+TO app_user;
 
-CREATE TABLE IF NOT EXISTS chunk_configs (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    chunk_size INTEGER NOT NULL CHECK (chunk_size > 0),
-    chunk_overlap INTEGER NOT NULL CHECK (chunk_overlap >= 0),
-    chunk_type TEXT NOT NULL,
+REVOKE UPDATE, DELETE, INSERT
+ON file_storage_types
+FROM app_user;
 
-    CONSTRAINT chk_chunk_overlap
-        CHECK (chunk_overlap < chunk_size)
-);
-
-
--- ------------------------------------------------------------
--- Chunks
--- ------------------------------------------------------------
+-- chunks
 
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     file_id BIGINT NOT NULL,
-    page_number INTEGER,
     chunk_text TEXT NOT NULL,
-    bm25_chunk_text TEXT,
-    chunk_config_id BIGINT,
+    cleaned_chunk_text TEXT NOT NULL,
+
+    embedding VECTOR(384),
 
     CONSTRAINT fk_chunks_file
         FOREIGN KEY (file_id)
         REFERENCES files(id)
         ON DELETE CASCADE,
 
-    CONSTRAINT fk_chunks_config
-        FOREIGN KEY (chunk_config_id)
-        REFERENCES chunk_configs(id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT chk_page_number
-        CHECK (page_number IS NULL OR page_number > 0)
+    CONSTRAINT uq_chunks_file_index
+        UNIQUE (file_id, chunk_index)
 );
-
-CREATE INDEX IF NOT EXISTS idx_chunks_file_id
-    ON chunks(file_id);
-
-CREATE INDEX IF NOT EXISTS idx_chunks_file_page
-    ON chunks(file_id, page_number);
-
-
--- ------------------------------------------------------------
--- Vector embeddings
--- ------------------------------------------------------------
--- Currently assuming 384-dimensional embeddings.
---
--- Example model:
--- all-MiniLM-L6-v2 -> 384 dimensions
---
--- Change vector(384) if you use another model.
--- ------------------------------------------------------------
-
-CREATE TABLE IF NOT EXISTS vectors (
-    chunk_id BIGINT PRIMARY KEY,
-    embedding VECTOR(384) NOT NULL,
-
-    CONSTRAINT fk_vectors_chunk
-        FOREIGN KEY (chunk_id)
-        REFERENCES chunks(id)
-        ON DELETE CASCADE
-);
-
-
--- ------------------------------------------------------------
--- Conversations
--- ------------------------------------------------------------
-
-
--- ------------------------------------------------------------
--- Vector index
--- ------------------------------------------------------------
--- For the POC, you technically don't need this.
---
--- HNSW gives us approximate nearest-neighbor search and will
--- become useful as the number of embeddings grows.
---
--- cosine distance operator: <=>
--- ------------------------------------------------------------
-
-CREATE INDEX IF NOT EXISTS idx_vectors_embedding_hnsw
-    ON vectors
-    USING hnsw (embedding vector_cosine_ops);
-
-
--- ============================================================
--- Done
--- ============================================================
