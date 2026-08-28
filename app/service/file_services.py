@@ -42,6 +42,7 @@ class FileObject:
     size: str
     content_hash: str
     data: str
+    owner_id: int
 
 
 def generate_file_name(content_type: str) -> str:
@@ -160,7 +161,7 @@ async def _insert_file(file_obj: FileObject,
         path,
         storage.storage_type
     )
-    return res['id'], dir_res
+    return res['id'], dir_res['username']
 
 
 async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection):
@@ -192,7 +193,7 @@ async def persist_text_file(
         embed_model
     )
     async with pg.transaction() as conn:
-        file_id, file_meta = await _insert_file(
+        file_id, owner_id = await _insert_file(
             file_obj,
             storage,
             conversation_id,
@@ -202,7 +203,7 @@ async def persist_text_file(
         storage.save_file(
             file_obj.data,
             file_obj.filename,
-            file_meta['owner_id'],
+            owner_id,
             conversation_id
         )
 
