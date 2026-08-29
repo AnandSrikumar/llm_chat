@@ -66,9 +66,9 @@ def _chunk_pdf(
     md_splitter: MarkdownHeaderTextSplitter,
     rec_splitter: RecursiveCharacterTextSplitter,
 ):
-    data.seek(0)
+    # data.seek(0)
     doc = pymupdf.open(
-        stream=data.getvalue(),
+        stream=data,
         filetype="pdf",
     )
     try:
@@ -92,7 +92,7 @@ def _chunk_docx(file_data: BytesIO, rec_splitter: RecursiveCharacterTextSplitter
 
 
 def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):
-    file_data.seek(0)
+    # file_data.seek(0)
     chunks = rec_splitter.split_text(file_data)
     return chunks
 
