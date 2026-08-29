@@ -1,5 +1,5 @@
-from app.storage.storage_base import Storage
 from app.storage.local_storage import LocalStorage
+from app.storage.storage_base import Storage
 
 STORAGE_MAP = {"local": LocalStorage}
 

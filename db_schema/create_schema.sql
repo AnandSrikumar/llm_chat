@@ -84,19 +84,13 @@ VALUES
     ('azure')
 ON CONFLICT (name) DO NOTHING;
 
-GRANT SELECT
-ON file_storage_types
-TO app_user;
-
-REVOKE UPDATE, DELETE, INSERT
-ON file_storage_types
-FROM app_user;
 
 -- chunks
 
 CREATE TABLE IF NOT EXISTS chunks (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     file_id BIGINT NOT NULL,
+    chunk_index INTEGER NOT NULL,
     chunk_text TEXT NOT NULL,
     cleaned_chunk_text TEXT NOT NULL,
 

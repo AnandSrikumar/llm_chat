@@ -1,25 +1,24 @@
 import hashlib
+import uuid
 from io import BytesIO
 from typing import Any
-import uuid
 
 import asyncpg
+import pymupdf
+import pymupdf4llm
 from fastapi import UploadFile
 from fastapi.concurrency import run_in_threadpool
-import pymupdf4llm
-import pymupdf
-from langchain_text_splitters import (
-    RecursiveCharacterTextSplitter,
-    MarkdownHeaderTextSplitter,
-)
-
+from langchain_text_splitters import (MarkdownHeaderTextSplitter,
+                                      RecursiveCharacterTextSplitter)
 from sentence_transformers import SentenceTransformer
 
+from app.core.exceptions import NotFound, UnsupportedFormatError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.service.db_queries import CHUNK_INSERT_QUERY, FILE_INSERT_QUERY, FILE_OWNER_QUERY
+from app.core.splitters import Splitters
+from app.service.db_queries import (CHUNK_INSERT_QUERY, FILE_INSERT_QUERY,
+                                    FILE_OWNER_QUERY)
 from app.service.text_services import clean_chunks_for_bm25
-from app.core.exceptions import NotFound, UnsupportedFormatError
 from app.storage.storage_base import Storage
 
 logger = get_logger(__name__)
@@ -138,16 +137,17 @@ def process_text_file(
         mime_type=mime_type,
         size=size,
         content_hash=content_hash,
-        data=data
+        data=data,
     )
 
 
-async def _insert_file(file_obj: FileObject,
-                       storage: Storage,
-                       conversation_id: int,
-                       conn: asyncpg.Connection):
-    dir_res = await conn.fetchrow(FILE_OWNER_QUERY,
-                                  conversation_id)
+async def _insert_file(
+    file_obj: FileObject,
+    storage: Storage,
+    conversation_id: int,
+    conn: asyncpg.Connection,
+):
+    dir_res = await conn.fetchrow(FILE_OWNER_QUERY, conversation_id)
     if not dir_res:
         raise NotFound("User or conversation not found")
     path = f"{dir_res['username']}/{dir_res['convo_dir']}/{dir_res['file_gen_name']}"
@@ -159,9 +159,9 @@ async def _insert_file(file_obj: FileObject,
         file_obj.mime_type,
         file_obj.size,
         path,
-        storage.storage_type
+        storage.storage_type,
     )
-    return res['id'], dir_res['username']
+    return res["id"], dir_res["username"]
 
 
 async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection):
@@ -170,40 +170,72 @@ async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection)
     embeds = file_obj.embeds
     records = [
         (file_id, chunk, cleaned_chunk, embedding)
-        for chunk, cleaned_chunk, embedding
-        in zip(chunks, cleaned_chunks, embeds)
+        for chunk, cleaned_chunk, embedding in zip(chunks, cleaned_chunks, embeds)
     ]
     await conn.executemany(CHUNK_INSERT_QUERY, records)
-    
+
 
 async def persist_text_file(
     file: UploadFile,
-    md_splitter: MarkdownHeaderTextSplitter,
-    rec_splitter: RecursiveCharacterTextSplitter,
+    splitters: Splitters,
     embed_model: SentenceTransformer,
     conversation_id: int,
     storage: Storage,
-    pg: PgClient
-): 
-    file_obj = await run_in_threadpool(
-        process_text_file,
-        file,
-        md_splitter,
-        rec_splitter,
-        embed_model
+    pg: PgClient,
+):
+    logger.info(
+        "Starting file persistence (conversation_id=%s, original_name=%s, mime_type=%s, upload_size=%s)",
+        conversation_id,
+        file.filename,
+        file.content_type,
+        file.size,
     )
-    async with pg.transaction() as conn:
-        file_id, owner_id = await _insert_file(
-            file_obj,
-            storage,
-            conversation_id,
-            conn
+    try:
+        file_obj = await run_in_threadpool(
+            process_text_file,
+            file,
+            splitters.markdown_splitter,
+            splitters.recursive_splitter,
+            embed_model,
         )
-        await _insert_chunk(file_obj, file_id, conn)
-        storage.save_file(
-            file_obj.data,
+        logger.info(
+            "File processing completed (conversation_id=%s, stored_name=%s, bytes=%s, chunks=%s)",
+            conversation_id,
             file_obj.filename,
-            owner_id,
-            conversation_id
+            len(file_obj.data),
+            len(file_obj.chunks),
         )
 
+        async with pg.transaction() as conn:
+            file_id, owner_id = await _insert_file(
+                file_obj, storage, conversation_id, conn
+            )
+            logger.info(
+                "File metadata inserted (conversation_id=%s, file_id=%s, owner_id=%s)",
+                conversation_id,
+                file_id,
+                owner_id,
+            )
+            await _insert_chunk(file_obj, file_id, conn)
+            logger.info(
+                "File chunks inserted (file_id=%s, chunk_count=%s)",
+                file_id,
+                len(file_obj.chunks),
+            )
+            storage_key = await storage.save_file(
+                file_obj.data, file_obj.filename, owner_id, conversation_id
+            )
+            logger.info(
+                "File content persisted (conversation_id=%s, file_id=%s, storage_type=%s, storage_key=%s)",
+                conversation_id,
+                file_id,
+                storage.storage_type,
+                storage_key,
+            )
+    except Exception:
+        logger.exception(
+            "File persistence failed (conversation_id=%s, original_name=%s)",
+            conversation_id,
+            file.filename,
+        )
+        raise

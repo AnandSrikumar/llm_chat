@@ -3,26 +3,16 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app.core.deps import (
-    COMPACT_THRESHOLD,
-    LLM,
-    LLM_MODEL,
-    SPLITTERS,
-    TIKTOKEN_ENCODING,
-    USER,
-    Pg,
-)
+from app.core.deps import (COMPACT_THRESHOLD, EMBEDDING_MODEL, LLM, LLM_MODEL,
+                           SPLITTERS, STORAGE_TYPE, TIKTOKEN_ENCODING, USER,
+                           Pg)
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
-from app.service.chat_service import (
-    compact_messages,
-    count_tokens,
-    create_chat_name,
-    create_conversation,
-    generate_message,
-    get_chat_meta,
-    get_conversation_lock,
-)
+from app.service.chat_service import (compact_messages, count_tokens,
+                                      create_chat_name, create_conversation,
+                                      generate_message, get_chat_meta,
+                                      get_conversation_lock)
+from app.service.file_services import persist_text_file
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -38,6 +28,8 @@ async def chat(
     compact_threshold: COMPACT_THRESHOLD,
     tiktoken_encoding: TIKTOKEN_ENCODING,
     splitters: SPLITTERS,
+    storage_type: STORAGE_TYPE,
+    embedding_model: EMBEDDING_MODEL,
     file: Annotated[UploadFile | None, File()] = None,
     max_tokens: int | None = 1024,
     chat_id: int | None = None,
@@ -59,6 +51,10 @@ async def chat(
         raise LLMGenerationError()
     await lock.acquire()
     try:
+        if file is not None:
+            await persist_text_file(
+                file, splitters, embedding_model, chat_id, storage_type
+            )
         logger.info(
             "Chat request received (user_id=%s, conversation_id=%s, message_length=%s, has_file=%s, max_tokens=%s)",
             user["id"],
@@ -92,4 +88,9 @@ async def chat(
     return StreamingResponse(
         generate_message(llm, llm_model, pg, chat_id, chat_meta, max_tokens, lock),
         media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )

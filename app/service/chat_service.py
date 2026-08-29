@@ -8,7 +8,8 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import COMPACTION_PROMPT, NAME_GENERATOR_PROMPT, SYSTEM_PROMPT
+from app.core.prompts import (COMPACTION_PROMPT, NAME_GENERATOR_PROMPT,
+                              SYSTEM_PROMPT)
 
 logger = get_logger(__name__)
 

@@ -1,6 +1,9 @@
 from pathlib import Path
 
+from app.core.log import get_logger
 from app.storage.storage_base import Storage
+
+logger = get_logger(__name__)
 
 
 class LocalStorage(Storage):
@@ -19,6 +22,12 @@ class LocalStorage(Storage):
         storage_key = Path(str(owner_id)) / str(conversation_id) / filename
 
         path = self.base_path / storage_key
+        logger.info(
+            "Saving file to local storage (storage_key=%s, destination=%s, bytes=%s)",
+            storage_key,
+            path,
+            len(file),
+        )
 
         path.parent.mkdir(
             parents=True,
@@ -26,6 +35,12 @@ class LocalStorage(Storage):
         )
 
         path.write_bytes(file)
+        logger.info(
+            "Local file write completed (storage_key=%s, destination=%s, bytes=%s)",
+            storage_key,
+            path,
+            len(file),
+        )
 
         return str(storage_key)
 
@@ -33,4 +48,16 @@ class LocalStorage(Storage):
         path = self.base_path / storage_key
 
         if path.exists():
+            logger.info(
+                "Deleting local file (storage_key=%s, destination=%s)",
+                storage_key,
+                path,
+            )
             path.unlink()
+            logger.info("Local file deletion completed (storage_key=%s)", storage_key)
+        else:
+            logger.warning(
+                "Local file deletion skipped because the file was not found (storage_key=%s, destination=%s)",
+                storage_key,
+                path,
+            )

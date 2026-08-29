@@ -2,21 +2,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from openai import AsyncOpenAI
-from transformers import AutoTokenizer
-
 from sentence_transformers import SentenceTransformer
+from transformers import AutoTokenizer
 
 from app.api.auth import router as auth_router
 from app.api.chat import router
 from app.core.config import Settings
-from app.core.exceptions import (
-    LLMGenerationError,
-    llm_generation_error_handler,
-    unsupported_error_handler,
-    UnsupportedFormatError,
-    NotFound,
-    not_found_handler
-)
+from app.core.exceptions import (LLMGenerationError, NotFound,
+                                 UnsupportedFormatError,
+                                 llm_generation_error_handler,
+                                 not_found_handler, unsupported_error_handler)
 from app.core.log import get_logger, initialize_logging, shutdown_logging
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
@@ -33,6 +28,7 @@ def exception_hanlders(app: FastAPI):
     )
     app.add_exception_handler(UnsupportedFormatError, unsupported_error_handler)
     app.add_exception_handler(NotFound, not_found_handler)
+
 
 def include_routers(app: FastAPI):
     app.include_router(router)
