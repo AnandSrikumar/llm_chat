@@ -3,15 +3,28 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
 
-from app.core.deps import (COMPACT_THRESHOLD, EMBEDDING_MODEL, LLM, LLM_MODEL,
-                           SPLITTERS, STORAGE_TYPE, TIKTOKEN_ENCODING, USER,
-                           Pg)
+from app.core.deps import (
+    COMPACT_THRESHOLD,
+    EMBEDDING_MODEL,
+    LLM,
+    LLM_MODEL,
+    SPLITTERS,
+    STORAGE_TYPE,
+    TIKTOKEN_ENCODING,
+    USER,
+    Pg,
+)
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
-from app.service.chat_service import (compact_messages, count_tokens,
-                                      create_chat_name, create_conversation,
-                                      generate_message, get_chat_meta,
-                                      get_conversation_lock)
+from app.service.chat_service import (
+    compact_messages,
+    count_tokens,
+    create_chat_name,
+    create_conversation,
+    generate_message,
+    get_chat_meta,
+    get_conversation_lock,
+)
 from app.service.file_services import persist_text_file
 
 router = APIRouter()
@@ -53,7 +66,7 @@ async def chat(
     try:
         if file is not None:
             await persist_text_file(
-                file, splitters, embedding_model, chat_id, storage_type
+                file, splitters, embedding_model, chat_id, storage_type, pg
             )
         logger.info(
             "Chat request received (user_id=%s, conversation_id=%s, message_length=%s, has_file=%s, max_tokens=%s)",
@@ -83,8 +96,10 @@ async def chat(
                 llm, llm_model, chat_meta.compaction
             )
         logger.info("Starting response stream (conversation_id=%s)", chat_id)
-    except Exception:
+    except Exception as e:
         lock.release()
+        logger.error(f"{e} has occured....")
+        raise
     return StreamingResponse(
         generate_message(llm, llm_model, pg, chat_id, chat_meta, max_tokens, lock),
         media_type="text/event-stream",

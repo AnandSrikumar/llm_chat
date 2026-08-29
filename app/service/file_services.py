@@ -8,16 +8,21 @@ import pymupdf
 import pymupdf4llm
 from fastapi import UploadFile
 from fastapi.concurrency import run_in_threadpool
-from langchain_text_splitters import (MarkdownHeaderTextSplitter,
-                                      RecursiveCharacterTextSplitter)
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from sentence_transformers import SentenceTransformer
 
 from app.core.exceptions import NotFound, UnsupportedFormatError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.splitters import Splitters
-from app.service.db_queries import (CHUNK_INSERT_QUERY, FILE_INSERT_QUERY,
-                                    FILE_OWNER_QUERY)
+from app.service.db_queries import (
+    CHUNK_INSERT_QUERY,
+    FILE_INSERT_QUERY,
+    FILE_OWNER_QUERY,
+)
 from app.service.text_services import clean_chunks_for_bm25
 from app.storage.storage_base import Storage
 
@@ -169,8 +174,10 @@ async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection)
     cleaned_chunks = file_obj.cleaned_chunks
     embeds = file_obj.embeds
     records = [
-        (file_id, chunk, cleaned_chunk, embedding)
-        for chunk, cleaned_chunk, embedding in zip(chunks, cleaned_chunks, embeds)
+        (file_id, idx, chunk, cleaned_chunk, embedding)
+        for idx, (chunk, cleaned_chunk, embedding) in enumerate(
+            zip(chunks, cleaned_chunks, embeds)
+        )
     ]
     await conn.executemany(CHUNK_INSERT_QUERY, records)
 

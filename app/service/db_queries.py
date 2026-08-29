@@ -25,9 +25,13 @@ insert into files (conversation_id,
 """
 
 CHUNK_INSERT_QUERY = """
-insert into chunks (
-file_id, chunk_text, cleaned_chunk_text, embedding)
-
-values ($1, $2, $3, $4)
+INSERT INTO chunks (
+    file_id,
+    chunk_index,
+    chunk_text,
+    cleaned_chunk_text,
+    embedding
+)
+VALUES ($1, $2, $3, $4, $5)
 
 """
