@@ -19,6 +19,7 @@ from app.core.deps import (
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
+from app.core.prompts import FILE_DESCRIPTION
 from app.core.splitters import Splitters
 from app.service.chat_service import (
     compact_messages,
@@ -57,6 +58,19 @@ async def _handle_files(
     logger.info(f"gathering file texts...{len(results)}")
     return [r for r in results if not isinstance(r, Exception)]
 
+def _create_file_prompt(files: tuple):
+    if not files:
+        return ""
+    files_content = "\n\n".join(
+        f"""
+    {idx}. {filename}
+
+    {content}
+    """
+        for idx, (filename, content) in enumerate(files, start=1)
+    )
+    prompt = FILE_DESCRIPTION.format(files=files_content)
+    return prompt
 
 @router.post("/v1/chat")
 async def chat(
@@ -95,8 +109,7 @@ async def chat(
         file_texts = await _handle_files(
             files, splitters, embedding_model, chat_id, storage_type, pg
         )
-        for text in file_texts:
-            user_messages.append({"role": "user", "content": text})
+        file_prompt = _create_file_prompt(file_texts)
         logger.info(
             "Chat request received (user_id=%s, conversation_id=%s, message_length=%s, has_file=%s, max_tokens=%s)",
             user["id"],
@@ -105,7 +118,8 @@ async def chat(
             files is not None,
             max_tokens,
         )
-        user_messages.append({"role": "user", "content": message})
+        user_messages.append({"role": "user", "content": f"{message}\n\n{file_prompt}"})
+        logger.info(f"{user_messages}")
         chat_meta = await get_chat_meta(pg, chat_id)
         chat_meta.messages.extend(user_messages)
         chat_meta.compaction.extend(user_messages)

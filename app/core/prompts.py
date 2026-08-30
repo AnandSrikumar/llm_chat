@@ -72,3 +72,11 @@ Do not mention image quality, colors, visual aesthetics, or irrelevant visual de
 
 Write the result as a dense factual description using natural language and technical terminology. Do not use introductory phrases such as "This image shows".
 """
+
+FILE_DESCRIPTION = """
+The following are files uploaded by the user. Each file is identified by its filename, followed by its content.
+
+{files}
+
+Use the file contents as context when answering the user's request. When referring to information from a specific file, identify the file by its filename.
+"""

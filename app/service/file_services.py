@@ -2,7 +2,8 @@ from dataclasses import dataclass
 import hashlib
 import uuid
 from io import BytesIO
-from typing import Any
+
+from charset_normalizer import from_bytes
 
 import asyncpg
 import pymupdf
@@ -144,7 +145,7 @@ def process_text_file(
         mime_type=mime_type,
         size=size,
         content_hash=content_hash,
-        data=data.decode("utf-8"),
+        data=data,
     )
 
 
@@ -245,7 +246,7 @@ async def persist_text_file(
                 storage.storage_type,
                 storage_key,
             )
-        return file_obj.data
+        return file_obj.file_original_name, "\n".join([chunk.page_content for chunk in file_obj.chunks])
     except Exception:
         logger.exception(
             "File persistence failed (conversation_id=%s, original_name=%s)",
