@@ -1,13 +1,12 @@
 FILE_OWNER_QUERY = """
-select u.username as username, 
-c.id || '_' || c.convo_name AS convo_dir,
-f.filename_generated file_gen_name
-from files f join conversations c 
-on c.id=f.conversation_id
-join users u on u.id=c.owner_id
+select u.username as username,
+c.id AS convo_dir from users u join conversations c on c.owner_id=u.id
 where c.id=$1
 """
 
+FILE_STORAGE_ID_QUERY = """
+select id from file_storage_types where name=$1
+"""
 FILE_INSERT_QUERY = """
 insert into files (conversation_id, 
         filename_original, 

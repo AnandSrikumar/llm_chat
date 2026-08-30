@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import hashlib
 import uuid
 from io import BytesIO
@@ -22,6 +23,7 @@ from app.service.db_queries import (
     CHUNK_INSERT_QUERY,
     FILE_INSERT_QUERY,
     FILE_OWNER_QUERY,
+    FILE_STORAGE_ID_QUERY,
 )
 from app.service.text_services import clean_chunks_for_bm25
 from app.storage.storage_base import Storage
@@ -36,6 +38,7 @@ MIME_EXTENSIONS = {
 }
 
 
+@dataclass
 class FileObject:
     filename: str
     chunks: list[str]
@@ -46,7 +49,6 @@ class FileObject:
     size: str
     content_hash: str
     data: str
-    owner_id: int
 
 
 def generate_file_name(content_type: str) -> str:
@@ -74,7 +76,7 @@ def _chunk_pdf(
     try:
         markdown = pymupdf4llm.to_markdown(doc)
         sections = md_splitter.split_text(markdown)
-        chunks = rec_splitter.split_text(sections)
+        chunks = rec_splitter.split_documents(sections)
         logger.info(
             "PDF chunking completed (sections=%s, chunks=%s)",
             len(sections),
@@ -128,7 +130,7 @@ def process_text_file(
     chunks = chunk_file(data, mime_type, md_splitter, rec_splitter)
     cleaned_chunks = clean_chunks_for_bm25(chunks)
     embeds = embed_model.encode(
-        chunks,
+        [chunk.page_content for chunk in chunks],
         batch_size=32,
         normalize_embeddings=True,
         show_progress_bar=False,
@@ -142,7 +144,7 @@ def process_text_file(
         mime_type=mime_type,
         size=size,
         content_hash=content_hash,
-        data=data,
+        data=data.decode("utf-8"),
     )
 
 
@@ -155,16 +157,20 @@ async def _insert_file(
     dir_res = await conn.fetchrow(FILE_OWNER_QUERY, conversation_id)
     if not dir_res:
         raise NotFound("User or conversation not found")
-    path = f"{dir_res['username']}/{dir_res['convo_dir']}/{dir_res['file_gen_name']}"
+    path = f"{dir_res['username']}/{dir_res['convo_dir']}/{file_obj.filename}"
+    file_storage_id = await conn.fetchrow(FILE_STORAGE_ID_QUERY, storage.storage_type)
+    if not file_storage_id:
+        raise NotFound("Invalid found storage type")
     res = await conn.fetchrow(
         FILE_INSERT_QUERY,
+        conversation_id,
         file_obj.file_original_name,
         file_obj.filename,
         file_obj.content_hash,
         file_obj.mime_type,
         file_obj.size,
         path,
-        storage.storage_type,
+        file_storage_id["id"],
     )
     return res["id"], dir_res["username"]
 
@@ -174,7 +180,7 @@ async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection)
     cleaned_chunks = file_obj.cleaned_chunks
     embeds = file_obj.embeds
     records = [
-        (file_id, idx, chunk, cleaned_chunk, embedding)
+        (file_id, idx, chunk.page_content, cleaned_chunk.page_content, embedding)
         for idx, (chunk, cleaned_chunk, embedding) in enumerate(
             zip(chunks, cleaned_chunks, embeds)
         )
@@ -239,6 +245,7 @@ async def persist_text_file(
                 storage.storage_type,
                 storage_key,
             )
+        return file_obj.data
     except Exception:
         logger.exception(
             "File persistence failed (conversation_id=%s, original_name=%s)",

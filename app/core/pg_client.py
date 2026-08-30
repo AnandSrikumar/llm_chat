@@ -1,6 +1,9 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
+
+from pgvector.asyncpg import register_vector
+
 
 import asyncpg
 
@@ -16,6 +19,9 @@ class PgClient:
         self.max_size = max_size
         self.pool: asyncpg.Pool | None = None
 
+    async def _init_connection(self, conn: asyncpg.Connection) -> None:
+        await register_vector(conn)
+
     async def connect(self) -> None:
         if self.pool is not None:
             logger.info("PostgreSQL connection pool is already initialized")
@@ -30,6 +36,7 @@ class PgClient:
             dsn=self.dsn,
             min_size=self.min_size,
             max_size=self.max_size,
+            init=self._init_connection,
         )
         logger.info("PostgreSQL connection pool created")
 

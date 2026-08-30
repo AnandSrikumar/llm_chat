@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     embedding_model: str
     embedding_dims: int
 
-    compact_threshold: int = 15000
+    compact_threshold: int = 20000
 
     storage_type: str = "local"
     storage_root: str = "./data"
