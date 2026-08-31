@@ -220,6 +220,7 @@ def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
 
 
 def describe_image(encoded: str, mime_type: str, client: OpenAI, model_name: str):
+    logger.info(f"Loaded image model.....")
     response = client.chat.completions.create(
         model=model_name,
         extra_body={"keep_alive": 0},
@@ -241,4 +242,5 @@ def describe_image(encoded: str, mime_type: str, client: OpenAI, model_name: str
             }
         ],
     )
+    logger.info(f"Image model unloaded......")
     return response.choices[0].message.content

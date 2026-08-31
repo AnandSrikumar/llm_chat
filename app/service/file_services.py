@@ -9,6 +9,8 @@ from docx.document import Document as _Document
 from docx.table import Table
 from docx.text.paragraph import Paragraph
 
+from langchain_core.documents import Document as LangchainDoc
+
 
 import asyncpg
 from openai import OpenAI
@@ -145,14 +147,11 @@ def _chunk_docx(
                 parts.append("\n".join(rows))
 
     text = "\n\n".join(parts)
+    langchain_doc = LangchainDoc(page_content=text, metadata={"content_type": "docx"})
+    return rec_splitter.split_documents([langchain_doc])
 
-    return rec_splitter.split_text(text)
 
-
-def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):
-    # file_data.seek(0)
-    chunks = rec_splitter.split_text(file_data)
-    return chunks
+def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter): ...
 
 
 def _chunk_image(
@@ -172,7 +171,13 @@ def _chunk_image(
     image_description = describe_image(
         image_b64, content_type, vision_client, model_name
     )
-    chunks = rec_splitter.split_text(image_description)
+    document = LangchainDoc(
+        page_content=image_description,
+        metadata={
+            "content_type": content_type,
+        },
+    )
+    chunks = rec_splitter.split_documents([document])
     return chunks
 
 
