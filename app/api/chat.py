@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import StreamingResponse
+from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
 from app.core.deps import (
@@ -10,6 +11,7 @@ from app.core.deps import (
     EMBEDDING_MODEL,
     LLM,
     LLM_MODEL,
+    LLM_VISION,
     SPLITTERS,
     STORAGE_TYPE,
     TIKTOKEN_ENCODING,
@@ -19,7 +21,7 @@ from app.core.deps import (
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import FILE_DESCRIPTION
+from app.core.prompts import FILE_DESCRIPTION, IMAGE_DESCRIBE
 from app.core.splitters import Splitters
 from app.service.chat_service import (
     compact_messages,
@@ -44,11 +46,12 @@ async def _handle_files(
     chat_id: int,
     storage_type: Storage,
     pg: PgClient,
+    llm_vision: OpenAI
 ):
     if not files:
         return []
     tasks = [
-        persist_text_file(file, splitters, embedding_model, chat_id, storage_type, pg)
+        persist_text_file(file, splitters, embedding_model, chat_id, storage_type, pg, llm_vision)
         for file in files
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -58,24 +61,24 @@ async def _handle_files(
     logger.info(f"gathering file texts...{len(results)}")
     return [r for r in results if not isinstance(r, Exception)]
 
+
 def _create_file_prompt(files: tuple):
     if not files:
         return ""
-    files_content = "\n\n".join(
-        f"""
+    files_content = "\n\n".join(f"""
     {idx}. {filename}
 
     {content}
-    """
-        for idx, (filename, content) in enumerate(files, start=1)
-    )
+    """ for idx, (filename, content) in enumerate(files, start=1))
     prompt = FILE_DESCRIPTION.format(files=files_content)
     return prompt
+
 
 @router.post("/v1/chat")
 async def chat(
     message: Annotated[str, Form()],
     llm: LLM,
+    llm_vision: LLM_VISION,
     llm_model: LLM_MODEL,
     pg: Pg,
     user: USER,
@@ -85,7 +88,7 @@ async def chat(
     storage_type: STORAGE_TYPE,
     embedding_model: EMBEDDING_MODEL,
     files: Annotated[list[UploadFile] | None, File()] = None,
-    max_tokens: int | None = 1024,
+    max_tokens: int | None = 2048,
     chat_id: int | None = None,
 ):
     if chat_id is None:
@@ -107,7 +110,7 @@ async def chat(
     try:
         user_messages = []
         file_texts = await _handle_files(
-            files, splitters, embedding_model, chat_id, storage_type, pg
+            files, splitters, embedding_model, chat_id, storage_type, pg, llm_vision
         )
         file_prompt = _create_file_prompt(file_texts)
         logger.info(

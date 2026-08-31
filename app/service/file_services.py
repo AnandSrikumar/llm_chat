@@ -1,11 +1,17 @@
+import base64
 from dataclasses import dataclass
 import hashlib
 import uuid
 from io import BytesIO
 
-from charset_normalizer import from_bytes
+from docx import Document
+from docx.document import Document as _Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
+
 
 import asyncpg
+from openai import OpenAI
 import pymupdf
 import pymupdf4llm
 from fastapi import UploadFile
@@ -20,6 +26,7 @@ from app.core.exceptions import NotFound, UnsupportedFormatError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.splitters import Splitters
+from app.service.chat_service import describe_image
 from app.service.db_queries import (
     CHUNK_INSERT_QUERY,
     FILE_INSERT_QUERY,
@@ -36,6 +43,7 @@ MIME_EXTENSIONS = {
     "text/plain": ".txt",
     "image/png": ".png",
     "image/jpeg": ".jpg",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
 }
 
 
@@ -91,7 +99,54 @@ def _chunk_pdf(
     return chunks
 
 
-def _chunk_docx(file_data: BytesIO, rec_splitter: RecursiveCharacterTextSplitter): ...
+def _iter_block_items(parent):
+    """
+    Yield paragraphs and tables in their original document order.
+    """
+    if isinstance(parent, _Document):
+        parent_elm = parent.element.body
+    else:
+        parent_elm = parent._tc
+
+    for child in parent_elm.iterchildren():
+        if child.tag.endswith("}p"):
+            yield Paragraph(child, parent)
+        elif child.tag.endswith("}tbl"):
+            yield Table(child, parent)
+
+
+def _chunk_docx(
+    file_data: BytesIO,
+    rec_splitter: RecursiveCharacterTextSplitter,
+):
+    file_data.seek(0)
+
+    doc = Document(file_data)
+
+    parts = []
+
+    for block in _iter_block_items(doc):
+        if isinstance(block, Paragraph):
+            text = block.text.strip()
+
+            if text:
+                parts.append(text)
+
+        elif isinstance(block, Table):
+            rows = []
+
+            for row in block.rows:
+                cells = [cell.text.strip() for cell in row.cells]
+
+                if any(cells):
+                    rows.append(" | ".join(cells))
+
+            if rows:
+                parts.append("\n".join(rows))
+
+    text = "\n\n".join(parts)
+
+    return rec_splitter.split_text(text)
 
 
 def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):
@@ -100,11 +155,27 @@ def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):
     return chunks
 
 
+def _chunk_image(data: bytes, content_type, 
+                 rec_splitter: RecursiveCharacterTextSplitter,
+                 vision_client: OpenAI):
+    """
+    read the bytes to base64 encoding
+    pass them to VL model
+    get the description
+    chunk it
+    """
+    image_b64 = base64.b64encode(data).decode("utf-8")
+    image_description = describe_image(image_b64, content_type, vision_client)
+    chunks = rec_splitter.split_text(image_description)
+    return chunks
+
+
 def chunk_file(
     data: bytes,
     mime_type: str,
     md_splitter: MarkdownHeaderTextSplitter,
     rec_splitter: RecursiveCharacterTextSplitter,
+    vision_client: OpenAI
 ):
     match mime_type:
         case "application/pdf":
@@ -113,6 +184,10 @@ def chunk_file(
             return _chunk_txt(data, rec_splitter)
         case "text/markdown":
             return _chunk_txt(data, rec_splitter)
+        case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            return _chunk_docx(data, rec_splitter)
+        case "image/png" | "image/jpeg":
+            return _chunk_image(data, mime_type, rec_splitter, vision_client)
         case _:
             raise UnsupportedFormatError()
 
@@ -122,13 +197,14 @@ def process_text_file(
     md_splitter: MarkdownHeaderTextSplitter,
     rec_splitter: RecursiveCharacterTextSplitter,
     embed_model: SentenceTransformer,
+    vision_client: OpenAI
 ) -> FileObject:
     mime_type = file.content_type
     file_name = generate_file_name(mime_type)
     data = file.file.read()
     size = file.size
     content_hash = hashlib.sha256(data).hexdigest()
-    chunks = chunk_file(data, mime_type, md_splitter, rec_splitter)
+    chunks = chunk_file(data, mime_type, md_splitter, rec_splitter, vision_client)
     cleaned_chunks = clean_chunks_for_bm25(chunks)
     embeds = embed_model.encode(
         [chunk.page_content for chunk in chunks],
@@ -196,6 +272,7 @@ async def persist_text_file(
     conversation_id: int,
     storage: Storage,
     pg: PgClient,
+    vision_client
 ):
     logger.info(
         "Starting file persistence (conversation_id=%s, original_name=%s, mime_type=%s, upload_size=%s)",
@@ -211,6 +288,7 @@ async def persist_text_file(
             splitters.markdown_splitter,
             splitters.recursive_splitter,
             embed_model,
+            vision_client
         )
         logger.info(
             "File processing completed (conversation_id=%s, stored_name=%s, bytes=%s, chunks=%s)",
@@ -246,7 +324,9 @@ async def persist_text_file(
                 storage.storage_type,
                 storage_key,
             )
-        return file_obj.file_original_name, "\n".join([chunk.page_content for chunk in file_obj.chunks])
+        return file_obj.file_original_name, "\n".join(
+            [chunk.page_content for chunk in file_obj.chunks]
+        )
     except Exception:
         logger.exception(
             "File persistence failed (conversation_id=%s, original_name=%s)",

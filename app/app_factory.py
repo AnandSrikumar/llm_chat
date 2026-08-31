@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
 from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
@@ -49,6 +49,13 @@ def app_state(app: FastAPI, settings: Settings):
     )
     app.state.pwd = pwd
     app.state.jwt = jwt
+    app.state.llm = AsyncOpenAI(
+                    base_url=f"{settings.ollama_host}/v1",
+                    api_key="ollama",
+                )
+    app.state.llm_vision = OpenAI(base_url=f"{settings.ollama_host}/v1",
+                        api_key="ollama",)
+    
     app.state.tiktoken_encoding = AutoTokenizer.from_pretrained(
         settings.ollama_tokenizer
     )
@@ -63,15 +70,11 @@ def create_app(settings: Settings):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         pg = None
-        llm = None
         initialize_logging()
         logger.info("Starting LLM Chat application")
         try:
             pg = PgClient(settings.postgres_dsn, max_size=settings.pg_max_size)
-            llm = AsyncOpenAI(
-                base_url=f"{settings.ollama_host}/v1",
-                api_key="ollama",
-            )
+            
             logger.info(
                 "Connecting to PostgreSQL (pool_max_size=%s) and configuring LLM client (model=%s)",
                 settings.pg_max_size,
@@ -79,7 +82,6 @@ def create_app(settings: Settings):
             )
             await pg.connect()
             app.state.pg = pg
-            app.state.llm = llm
 
             logger.info("LLM Chat application startup completed")
             yield

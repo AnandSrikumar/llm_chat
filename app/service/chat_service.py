@@ -3,12 +3,12 @@ import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAI
 from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import COMPACTION_PROMPT, NAME_GENERATOR_PROMPT, SYSTEM_PROMPT
+from app.core.prompts import COMPACTION_PROMPT, IMAGE_DESCRIBE, NAME_GENERATOR_PROMPT, SYSTEM_PROMPT
 
 logger = get_logger(__name__)
 
@@ -212,3 +212,28 @@ def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
         CONVERSATION_LOCKS[conversation_id] = lock
 
     return lock
+
+
+def describe_image(encoded: str, mime_type: str, client: OpenAI):
+    response = client.chat.completions.create(
+        model="qwen2.5vl:3b",
+        extra_body={"keep_alive": 0},
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{encoded}",
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": IMAGE_DESCRIBE,
+                    },
+                ],
+            }
+        ],
+    )
+    return response.choices[0].message.content
