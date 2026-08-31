@@ -8,7 +8,12 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import COMPACTION_PROMPT, IMAGE_DESCRIBE, NAME_GENERATOR_PROMPT, SYSTEM_PROMPT
+from app.core.prompts import (
+    COMPACTION_PROMPT,
+    IMAGE_DESCRIBE,
+    NAME_GENERATOR_PROMPT,
+    SYSTEM_PROMPT,
+)
 
 logger = get_logger(__name__)
 
@@ -214,9 +219,9 @@ def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
     return lock
 
 
-def describe_image(encoded: str, mime_type: str, client: OpenAI):
+def describe_image(encoded: str, mime_type: str, client: OpenAI, model_name: str):
     response = client.chat.completions.create(
-        model="qwen2.5vl:3b",
+        model=model_name,
         extra_body={"keep_alive": 0},
         messages=[
             {

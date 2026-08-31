@@ -12,6 +12,7 @@ from app.core.deps import (
     LLM,
     LLM_MODEL,
     LLM_VISION,
+    LLM_VISION_MODEL,
     SPLITTERS,
     STORAGE_TYPE,
     TIKTOKEN_ENCODING,
@@ -46,12 +47,22 @@ async def _handle_files(
     chat_id: int,
     storage_type: Storage,
     pg: PgClient,
-    llm_vision: OpenAI
+    llm_vision: OpenAI,
+    llm_vision_model: str,
 ):
     if not files:
         return []
     tasks = [
-        persist_text_file(file, splitters, embedding_model, chat_id, storage_type, pg, llm_vision)
+        persist_text_file(
+            file,
+            splitters,
+            embedding_model,
+            chat_id,
+            storage_type,
+            pg,
+            llm_vision,
+            llm_vision_model,
+        )
         for file in files
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -80,6 +91,7 @@ async def chat(
     llm: LLM,
     llm_vision: LLM_VISION,
     llm_model: LLM_MODEL,
+    llm_vision_model: LLM_VISION_MODEL,
     pg: Pg,
     user: USER,
     compact_threshold: COMPACT_THRESHOLD,
@@ -110,7 +122,14 @@ async def chat(
     try:
         user_messages = []
         file_texts = await _handle_files(
-            files, splitters, embedding_model, chat_id, storage_type, pg, llm_vision
+            files,
+            splitters,
+            embedding_model,
+            chat_id,
+            storage_type,
+            pg,
+            llm_vision,
+            llm_vision_model,
         )
         file_prompt = _create_file_prompt(file_texts)
         logger.info(

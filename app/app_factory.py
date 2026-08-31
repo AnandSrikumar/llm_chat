@@ -50,12 +50,14 @@ def app_state(app: FastAPI, settings: Settings):
     app.state.pwd = pwd
     app.state.jwt = jwt
     app.state.llm = AsyncOpenAI(
-                    base_url=f"{settings.ollama_host}/v1",
-                    api_key="ollama",
-                )
-    app.state.llm_vision = OpenAI(base_url=f"{settings.ollama_host}/v1",
-                        api_key="ollama",)
-    
+        base_url=f"{settings.ollama_host}/v1",
+        api_key="ollama",
+    )
+    app.state.llm_vision = OpenAI(
+        base_url=f"{settings.ollama_host}/v1",
+        api_key="ollama",
+    )
+
     app.state.tiktoken_encoding = AutoTokenizer.from_pretrained(
         settings.ollama_tokenizer
     )
@@ -74,7 +76,7 @@ def create_app(settings: Settings):
         logger.info("Starting LLM Chat application")
         try:
             pg = PgClient(settings.postgres_dsn, max_size=settings.pg_max_size)
-            
+
             logger.info(
                 "Connecting to PostgreSQL (pool_max_size=%s) and configuring LLM client (model=%s)",
                 settings.pg_max_size,

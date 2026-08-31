@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     ollama_host: str
     ollama_chat_model: str = "qwen3:4b"
-
+    ollama_vision_model: str = "qwen2.5vl:3b"
     chunk_type: str
     chunk_size: int
     chunk_overlap: int

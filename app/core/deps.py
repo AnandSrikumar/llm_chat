@@ -27,8 +27,13 @@ def get_llm(request: Request) -> AsyncOpenAI:
 def get_llm_vision(request: Request) -> AsyncOpenAI:
     return request.app.state.llm_vision
 
+
 def get_llm_model(request: Request) -> str:
     return request.app.state.settings.ollama_chat_model
+
+
+def get_llm_vision_model_name(request: Request) -> str:
+    return request.app.state.settings.ollama_vision_model
 
 
 def get_compact_thres(request: Request) -> int:
@@ -106,6 +111,7 @@ Pg = Annotated[PgClient, Depends(get_pg)]
 LLM = Annotated[AsyncOpenAI, Depends(get_llm)]
 LLM_VISION = Annotated[OpenAI, Depends(get_llm_vision)]
 LLM_MODEL = Annotated[str, Depends(get_llm_model)]
+LLM_VISION_MODEL = Annotated[str, Depends(get_llm_vision_model_name)]
 USER = Annotated[dict, Depends(get_current_user)]
 COMPACT_THRESHOLD = Annotated[int, Depends(get_compact_thres)]
 JWT_DEP = Annotated[JWT, Depends(get_jwt)]
