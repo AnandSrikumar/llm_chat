@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from io import BytesIO
 
+from charset_normalizer import from_bytes
 from docx import Document
 from docx.document import Document as _Document
 from docx.table import Table
@@ -43,6 +44,7 @@ logger = get_logger(__name__)
 MIME_EXTENSIONS = {
     "application/pdf": ".pdf",
     "text/plain": ".txt",
+    "text/markdown": ".md",
     "image/png": ".png",
     "image/jpeg": ".jpg",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": ".docx",
@@ -151,7 +153,10 @@ def _chunk_docx(
     return rec_splitter.split_documents([langchain_doc])
 
 
-def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter): ...
+def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):
+    text = str(from_bytes(file_data).best())
+    doc = LangchainDoc(text)
+    return rec_splitter.split_documents([doc])
 
 
 def _chunk_image(

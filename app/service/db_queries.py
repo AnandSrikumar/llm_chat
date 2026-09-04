@@ -34,3 +34,21 @@ INSERT INTO chunks (
 VALUES ($1, $2, $3, $4, $5)
 
 """
+
+SIMILAR_CHUNKS = """
+SELECT
+    c.id,
+    f.filename_original,
+    c.chunk_index,
+    c.chunk_text,
+    c.cleaned_chunk_text,
+    c.embedding <=> $1::vector AS cosine_distance
+FROM chunks c
+JOIN files f
+    ON f.id = c.file_id
+WHERE f.conversation_id = $2
+  AND f.mime_type NOT LIKE 'image/%'
+  AND c.embedding IS NOT NULL
+ORDER BY c.embedding <=> $1::vector
+LIMIT $3;
+"""

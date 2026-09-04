@@ -140,6 +140,9 @@ async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) ->
         *recent_messages,
     ]
 
+async def handle_tool(messages: list[dict]):
+    ...
+
 
 async def generate_message(
     llm: AsyncOpenAI,
