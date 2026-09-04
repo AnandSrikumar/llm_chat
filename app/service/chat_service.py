@@ -100,8 +100,13 @@ async def count_tokens(
         model_name,
         len(messages),
     )
-    total_tokens = sum(len(encoding.encode(message["content"])) for message in messages)
-    return total_tokens
+    tot = 0
+    for message in messages:
+        if isinstance(message, dict):
+            tot += len(encoding.encode(message["content"]))
+            continue
+        tot += len(encoding.encode(message))
+    return tot
 
 
 async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) -> dict:
@@ -152,6 +157,7 @@ async def handle_tool(
     chat_meta: ChatMeta,
     item: Any,
 ):
+    logger.info(f"calling tool: {item.name}")
     relevant_context = await search_rag(query, chat_id, pg, embed_model)
     tool_result = {
         "type": "function_call_output",
@@ -160,6 +166,7 @@ async def handle_tool(
     }
     chat_meta.messages.append(tool_result)
     chat_meta.compaction.append(tool_result)
+    logger.info(f"tool call: {item.name} complete.")
 
 
 async def generate_message(
@@ -235,9 +242,9 @@ async def generate_message(
         logger.info(
             "Conversation response persisted (conversation_id=%s)", conversation_id
         )
-    except Exception:
+    except Exception as e:
         logger.exception(
-            "Chat response generation failed (conversation_id=%s)", conversation_id
+            "Chat response generation failed (conversation_id=%s) %s", conversation_id, e
         )
         raise
     finally:

@@ -120,10 +120,10 @@ def _iter_block_items(parent):
 
 
 def _chunk_docx(
-    file_data: BytesIO,
+    file_data: bytes,
     rec_splitter: RecursiveCharacterTextSplitter,
 ):
-    file_data.seek(0)
+    # file_data.seek(0)
 
     doc = Document(file_data)
 

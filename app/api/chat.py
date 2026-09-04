@@ -140,6 +140,8 @@ async def chat(
             files is not None,
             max_tokens,
         )
+        if await count_tokens(llm_model, file_prompt, tiktoken_encoding) > 5000:
+            file_prompt = ""
         user_messages.append({"role": "user", "content": f"{message}\n\n{file_prompt}"})
         logger.info(f"{user_messages}")
         chat_meta = await get_chat_meta(pg, chat_id)
@@ -166,7 +168,7 @@ async def chat(
         logger.error(f"{e} has occured....")
         raise
     return StreamingResponse(
-        generate_message(llm, llm_model, pg, chat_id, chat_meta, max_tokens, lock),
+        generate_message(llm, llm_model, pg, chat_id, chat_meta, embedding_model, max_tokens, lock),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
