@@ -2,8 +2,10 @@ import asyncio
 import json
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
+from typing import Any
 
 from openai import AsyncOpenAI, OpenAI
+from sentence_transformers import SentenceTransformer
 from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
@@ -14,6 +16,7 @@ from app.core.prompts import (
     NAME_GENERATOR_PROMPT,
     SYSTEM_PROMPT,
 )
+from app.core.search_tools import search_rag, search_rag_tool
 
 logger = get_logger(__name__)
 
@@ -140,8 +143,23 @@ async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) ->
         *recent_messages,
     ]
 
-async def handle_tool(messages: list[dict]):
-    ...
+
+async def handle_tool(
+    query: str,
+    chat_id: int,
+    pg: PgClient,
+    embed_model: SentenceTransformer,
+    chat_meta: ChatMeta,
+    item: Any,
+):
+    relevant_context = await search_rag(query, chat_id, pg, embed_model)
+    tool_result = {
+        "type": "function_call_output",
+        "call_id": item.call_id,
+        "output": relevant_context,
+    }
+    chat_meta.messages.append(tool_result)
+    chat_meta.compaction.append(tool_result)
 
 
 async def generate_message(
@@ -150,6 +168,7 @@ async def generate_message(
     pg: PgClient,
     conversation_id: int,
     chat_meta: ChatMeta,
+    embed_model: SentenceTransformer,
     max_tokens: int = 1024,
     lock: asyncio.Lock = None,
 ) -> AsyncGenerator[str, None]:
@@ -160,21 +179,35 @@ async def generate_message(
         max_tokens,
     )
     try:
-        stream = await llm.responses.create(
-            model=model_name,
-            instructions=SYSTEM_PROMPT,
-            input=chat_meta.compaction,
-            stream=True,
-            max_output_tokens=max_tokens,
-        )
-        assistant_chunks: list[str] = []
-        yield f"chat_id: {conversation_id}\n\n"
-        async for event in stream:
-            if event.type == "response.output_text.delta":
-                assistant_chunks.append(event.delta)
-                yield f"{event.delta}"
-            elif event.type == "response.completed":
+        while True:
+            tool_calls = []
+            stream = await llm.responses.create(
+                model=model_name,
+                instructions=SYSTEM_PROMPT,
+                input=chat_meta.compaction,
+                tools=[search_rag_tool],
+                stream=True,
+                max_output_tokens=max_tokens,
+            )
+            assistant_chunks: list[str] = []
+            yield f"chat_id: {conversation_id}\n\n"
+            async for event in stream:
+                if event.type == "response.output_text.delta":
+                    assistant_chunks.append(event.delta)
+                    yield f"{event.delta}"
+                elif event.type == "response.completed":
+                    break
+                elif event.type == "response.output_item.done":
+                    item = event.item
+                    if item.type == "function_call":
+                        tool_calls.append(item)
+            if not tool_calls:
                 break
+            for tool in tool_calls:
+                args = json.loads(tool.arguments)
+                await handle_tool(
+                    args["query"], conversation_id, pg, embed_model, chat_meta, tool
+                )
 
         assistant_message = "".join(assistant_chunks)
         logger.info(
