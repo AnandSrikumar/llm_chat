@@ -1,7 +1,7 @@
 SYSTEM_PROMPT = """
 You are a helpful assistant.
 
-You have access to a tool called `search_docs`.
+You have access to a tool called `search_rag`.
 
 ## Rules
 

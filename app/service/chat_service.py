@@ -103,6 +103,9 @@ async def count_tokens(
     tot = 0
     for message in messages:
         if isinstance(message, dict):
+            if "content" not in message:
+                tot += len(encoding.encode(json.dumps(message)))
+                continue
             tot += len(encoding.encode(message["content"]))
             continue
         tot += len(encoding.encode(message))
@@ -157,13 +160,17 @@ async def handle_tool(
     chat_meta: ChatMeta,
     item: Any,
 ):
-    logger.info(f"calling tool: {item.name}")
+    logger.info(f"calling tool: {item.name} --> {query}")
     relevant_context = await search_rag(query, chat_id, pg, embed_model)
+    logger.info(f"Tool returned: {relevant_context}")
     tool_result = {
         "type": "function_call_output",
         "call_id": item.call_id,
         "output": relevant_context,
     }
+    chat_meta.messages.append(item.model_dump())
+    chat_meta.compaction.append(item.model_dump())
+
     chat_meta.messages.append(tool_result)
     chat_meta.compaction.append(tool_result)
     logger.info(f"tool call: {item.name} complete.")
@@ -199,52 +206,66 @@ async def generate_message(
             assistant_chunks: list[str] = []
             yield f"chat_id: {conversation_id}\n\n"
             async for event in stream:
+                # logger.info(f"{event.type}: {event}")
                 if event.type == "response.output_text.delta":
                     assistant_chunks.append(event.delta)
                     yield f"{event.delta}"
                 elif event.type == "response.completed":
+                    logger.info(
+                        "status=%s tool_choice=%s tools=%r output=%r",
+                        event.response.status,
+                        event.response.tool_choice,
+                        event.response.tools,
+                        event.response.output,
+                    )
+                    for item in event.response.output:
+                        if item.type == "function_call":
+                            tool_calls.append(item)
                     break
-                elif event.type == "response.output_item.done":
-                    item = event.item
-                    if item.type == "function_call":
-                        tool_calls.append(item)
+
             if not tool_calls:
                 break
+
             for tool in tool_calls:
                 args = json.loads(tool.arguments)
                 await handle_tool(
                     args["query"], conversation_id, pg, embed_model, chat_meta, tool
                 )
-
-        assistant_message = "".join(assistant_chunks)
-        logger.info(
-            "LLM response stream completed (conversation_id=%s, response_length=%s)",
-            conversation_id,
-            len(assistant_message),
-        )
-        chat_meta.messages.append({"role": "assistant", "content": assistant_message})
-        chat_meta.compaction.append({"role": "assistant", "content": assistant_message})
-
-        query = """
-            UPDATE conversations
-            SET
-                messages = $1::jsonb,
-                compaction = $2::jsonb
-            WHERE id = $3
-        """
-        async with pg.transaction() as conn:
-            await conn.execute(
-                query,
-                json.dumps(chat_meta.messages),
-                json.dumps(chat_meta.compaction),
+            assistant_message = "".join(assistant_chunks)
+            logger.info(
+                "LLM response stream completed (conversation_id=%s, response_length=%s)",
                 conversation_id,
+                len(assistant_message),
             )
-        logger.info(
-            "Conversation response persisted (conversation_id=%s)", conversation_id
-        )
+            chat_meta.messages.append(
+                {"role": "assistant", "content": assistant_message}
+            )
+            chat_meta.compaction.append(
+                {"role": "assistant", "content": assistant_message}
+            )
+
+            query = """
+                UPDATE conversations
+                SET
+                    messages = $1::jsonb,
+                    compaction = $2::jsonb
+                WHERE id = $3
+            """
+            async with pg.transaction() as conn:
+                await conn.execute(
+                    query,
+                    json.dumps(chat_meta.messages),
+                    json.dumps(chat_meta.compaction),
+                    conversation_id,
+                )
+            logger.info(
+                "Conversation response persisted (conversation_id=%s)", conversation_id
+            )
     except Exception as e:
         logger.exception(
-            "Chat response generation failed (conversation_id=%s) %s", conversation_id, e
+            "Chat response generation failed (conversation_id=%s) %s",
+            conversation_id,
+            e,
         )
         raise
     finally:

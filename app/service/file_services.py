@@ -124,33 +124,37 @@ def _chunk_docx(
     rec_splitter: RecursiveCharacterTextSplitter,
 ):
     # file_data.seek(0)
+    try:
+        doc = Document(BytesIO(file_data))
 
-    doc = Document(file_data)
+        parts = []
 
-    parts = []
+        for block in _iter_block_items(doc):
+            if isinstance(block, Paragraph):
+                text = block.text.strip()
 
-    for block in _iter_block_items(doc):
-        if isinstance(block, Paragraph):
-            text = block.text.strip()
+                if text:
+                    parts.append(text)
 
-            if text:
-                parts.append(text)
+            elif isinstance(block, Table):
+                rows = []
 
-        elif isinstance(block, Table):
-            rows = []
+                for row in block.rows:
+                    cells = [cell.text.strip() for cell in row.cells]
 
-            for row in block.rows:
-                cells = [cell.text.strip() for cell in row.cells]
+                    if any(cells):
+                        rows.append(" | ".join(cells))
 
-                if any(cells):
-                    rows.append(" | ".join(cells))
+                if rows:
+                    parts.append("\n".join(rows))
 
-            if rows:
-                parts.append("\n".join(rows))
-
-    text = "\n\n".join(parts)
-    langchain_doc = LangchainDoc(page_content=text, metadata={"content_type": "docx"})
-    return rec_splitter.split_documents([langchain_doc])
+        text = "\n\n".join(parts)
+        langchain_doc = LangchainDoc(
+            page_content=text, metadata={"content_type": "docx"}
+        )
+        return rec_splitter.split_documents([langchain_doc])
+    except Exception as e:
+        logger.error(f"Docx parsing failed: {e}")
 
 
 def _chunk_txt(file_data: bytes, rec_splitter: RecursiveCharacterTextSplitter):

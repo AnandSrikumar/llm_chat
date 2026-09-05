@@ -168,7 +168,9 @@ async def chat(
         logger.error(f"{e} has occured....")
         raise
     return StreamingResponse(
-        generate_message(llm, llm_model, pg, chat_id, chat_meta, embedding_model, max_tokens, lock),
+        generate_message(
+            llm, llm_model, pg, chat_id, chat_meta, embedding_model, max_tokens, lock
+        ),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
