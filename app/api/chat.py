@@ -23,7 +23,6 @@ from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.prompts import FILE_DESCRIPTION, IMAGE_DESCRIBE
-from app.core.search_tools import search_rag
 from app.core.splitters import Splitters
 from app.service.chat_service import (
     compact_messages,
@@ -33,6 +32,7 @@ from app.service.chat_service import (
     generate_message,
     get_chat_meta,
     get_conversation_lock,
+    search_rag,
 )
 from app.service.file_services import persist_text_file
 from app.storage.storage_base import Storage
@@ -122,6 +122,7 @@ async def chat(
     await lock.acquire()
     try:
         user_messages = []
+        rag_context = await search_rag(message, chat_id, pg, embedding_model)
         file_texts = await _handle_files(
             files,
             splitters,
@@ -141,10 +142,13 @@ async def chat(
             files is not None,
             max_tokens,
         )
-        if not file_prompt:
-            logger.info(f"hitting the rag...")
-            file_prompt = await search_rag(message, chat_id, pg, embedding_model)
-        user_messages.append({"role": "user", "content": f"{message}\n\n{file_prompt}"})
+
+        user_messages.append(
+            {
+                "role": "user",
+                "content": f"{message}\n\n{file_prompt}\n\nRag context:\n{rag_context}",
+            }
+        )
         logger.info(f"{user_messages}")
         chat_meta = await get_chat_meta(pg, chat_id)
         chat_meta.messages.extend(user_messages)
