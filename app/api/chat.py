@@ -100,7 +100,7 @@ async def chat(
     storage_type: STORAGE_TYPE,
     embedding_model: EMBEDDING_MODEL,
     files: Annotated[list[UploadFile] | None, File()] = None,
-    max_tokens: int | None = 2048,
+    max_tokens: int | None = 4096,
     chat_id: int | None = None,
 ):
     if chat_id is None:
@@ -140,8 +140,7 @@ async def chat(
             files is not None,
             max_tokens,
         )
-        if await count_tokens(llm_model, file_prompt, tiktoken_encoding) > 5000:
-            file_prompt = ""
+        
         user_messages.append({"role": "user", "content": f"{message}\n\n{file_prompt}"})
         logger.info(f"{user_messages}")
         chat_meta = await get_chat_meta(pg, chat_id)
