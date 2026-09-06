@@ -17,6 +17,7 @@ from app.core.prompts import (
     SYSTEM_PROMPT,
 )
 from app.core.search_tools import search_rag, search_rag_tool
+from app.service.db_queries import SIMILAR_CHUNKS
 
 logger = get_logger(__name__)
 
@@ -176,6 +177,26 @@ async def handle_tool(
     logger.info(f"tool call: {item.name} complete.")
 
 
+async def search_rag(
+    query: str,
+    chat_id: int,
+    pg: PgClient,
+    embed_model: SentenceTransformer,
+    top_k: int = 3,
+    threshold: float = 0.4,
+):
+    embeds = embed_model.encode(query)
+    similar = await pg.fetch(SIMILAR_CHUNKS, embeds, chat_id, top_k)
+    context = []
+    for c in similar:
+        chunk = f"file name: {c['filename_original']}\nscore: {c['cosine_distance']}\ntext: {c['chunk_text']}"
+        context.append(chunk)
+        logger.info(
+            f"filename: {c['filename_original']}-->chunk score: {c['cosine_distance']}"
+        )
+    return "\n\n".join(context)
+
+
 async def generate_message(
     llm: AsyncOpenAI,
     model_name: str,
@@ -199,7 +220,6 @@ async def generate_message(
                 model=model_name,
                 instructions=SYSTEM_PROMPT,
                 input=chat_meta.compaction,
-                tools=[search_rag_tool],
                 stream=True,
                 max_output_tokens=max_tokens,
             )
@@ -212,11 +232,10 @@ async def generate_message(
                     yield f"{event.delta}"
                 elif event.type == "response.completed":
                     logger.info(
-                        "status=%s tool_choice=%s tools=%r output=%r",
+                        "status=%s incomplete_details=%r usage=%r",
                         event.response.status,
-                        event.response.tool_choice,
-                        event.response.tools,
-                        event.response.output,
+                        event.response.incomplete_details,
+                        event.response.usage,
                     )
                     for item in event.response.output:
                         if item.type == "function_call":
@@ -231,36 +250,32 @@ async def generate_message(
                 await handle_tool(
                     args["query"], conversation_id, pg, embed_model, chat_meta, tool
                 )
-            assistant_message = "".join(assistant_chunks)
-            logger.info(
-                "LLM response stream completed (conversation_id=%s, response_length=%s)",
-                conversation_id,
-                len(assistant_message),
-            )
-            chat_meta.messages.append(
-                {"role": "assistant", "content": assistant_message}
-            )
-            chat_meta.compaction.append(
-                {"role": "assistant", "content": assistant_message}
-            )
+        assistant_message = "".join(assistant_chunks)
+        logger.info(
+            "LLM response stream completed (conversation_id=%s, response_length=%s)",
+            conversation_id,
+            len(assistant_message),
+        )
+        chat_meta.messages.append({"role": "assistant", "content": assistant_message})
+        chat_meta.compaction.append({"role": "assistant", "content": assistant_message})
 
-            query = """
-                UPDATE conversations
-                SET
-                    messages = $1::jsonb,
-                    compaction = $2::jsonb
-                WHERE id = $3
-            """
-            async with pg.transaction() as conn:
-                await conn.execute(
-                    query,
-                    json.dumps(chat_meta.messages),
-                    json.dumps(chat_meta.compaction),
-                    conversation_id,
-                )
-            logger.info(
-                "Conversation response persisted (conversation_id=%s)", conversation_id
+        query = """
+            UPDATE conversations
+            SET
+                messages = $1::jsonb,
+                compaction = $2::jsonb
+            WHERE id = $3
+        """
+        async with pg.transaction() as conn:
+            await conn.execute(
+                query,
+                json.dumps(chat_meta.messages),
+                json.dumps(chat_meta.compaction),
+                conversation_id,
             )
+        logger.info(
+            "Conversation response persisted (conversation_id=%s)", conversation_id
+        )
     except Exception as e:
         logger.exception(
             "Chat response generation failed (conversation_id=%s) %s",

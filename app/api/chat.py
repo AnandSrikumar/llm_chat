@@ -23,6 +23,7 @@ from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.prompts import FILE_DESCRIPTION, IMAGE_DESCRIBE
+from app.core.search_tools import search_rag
 from app.core.splitters import Splitters
 from app.service.chat_service import (
     compact_messages,
@@ -100,7 +101,7 @@ async def chat(
     storage_type: STORAGE_TYPE,
     embedding_model: EMBEDDING_MODEL,
     files: Annotated[list[UploadFile] | None, File()] = None,
-    max_tokens: int | None = 4096,
+    max_tokens: int | None = 32000,
     chat_id: int | None = None,
 ):
     if chat_id is None:
@@ -140,7 +141,9 @@ async def chat(
             files is not None,
             max_tokens,
         )
-        
+        if not file_prompt:
+            logger.info(f"hitting the rag...")
+            file_prompt = await search_rag(message, chat_id, pg, embedding_model)
         user_messages.append({"role": "user", "content": f"{message}\n\n{file_prompt}"})
         logger.info(f"{user_messages}")
         chat_meta = await get_chat_meta(pg, chat_id)

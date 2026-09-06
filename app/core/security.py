@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 class JWT:
-    def __init__(self, secret: str, algorithm: str, exp: int = 60):
+    def __init__(self, secret: str, algorithm: str, exp: int = 600):
         self.secret_key = secret
         self.algorithm = algorithm
         self.exp = exp
