@@ -16,7 +16,6 @@ from app.core.prompts import (
     NAME_GENERATOR_PROMPT,
     SYSTEM_PROMPT,
 )
-from app.core.search_tools import search_rag, search_rag_tool
 from app.service.db_queries import SIMILAR_CHUNKS
 
 logger = get_logger(__name__)
@@ -153,30 +152,6 @@ async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) ->
     ]
 
 
-async def handle_tool(
-    query: str,
-    chat_id: int,
-    pg: PgClient,
-    embed_model: SentenceTransformer,
-    chat_meta: ChatMeta,
-    item: Any,
-):
-    logger.info(f"calling tool: {item.name} --> {query}")
-    relevant_context = await search_rag(query, chat_id, pg, embed_model)
-    logger.info(f"Tool returned: {relevant_context}")
-    tool_result = {
-        "type": "function_call_output",
-        "call_id": item.call_id,
-        "output": relevant_context,
-    }
-    chat_meta.messages.append(item.model_dump())
-    chat_meta.compaction.append(item.model_dump())
-
-    chat_meta.messages.append(tool_result)
-    chat_meta.compaction.append(tool_result)
-    logger.info(f"tool call: {item.name} complete.")
-
-
 async def search_rag(
     query: str,
     chat_id: int,
@@ -203,7 +178,6 @@ async def generate_message(
     pg: PgClient,
     conversation_id: int,
     chat_meta: ChatMeta,
-    embed_model: SentenceTransformer,
     max_tokens: int = 1024,
     lock: asyncio.Lock = None,
 ) -> AsyncGenerator[str, None]:
@@ -214,42 +188,29 @@ async def generate_message(
         max_tokens,
     )
     try:
-        while True:
-            tool_calls = []
-            stream = await llm.responses.create(
-                model=model_name,
-                instructions=SYSTEM_PROMPT,
-                input=chat_meta.compaction,
-                stream=True,
-                max_output_tokens=max_tokens,
-            )
-            assistant_chunks: list[str] = []
-            yield f"chat_id: {conversation_id}\n\n"
-            async for event in stream:
-                # logger.info(f"{event.type}: {event}")
-                if event.type == "response.output_text.delta":
-                    assistant_chunks.append(event.delta)
-                    yield f"{event.delta}"
-                elif event.type == "response.completed":
-                    logger.info(
-                        "status=%s incomplete_details=%r usage=%r",
-                        event.response.status,
-                        event.response.incomplete_details,
-                        event.response.usage,
-                    )
-                    for item in event.response.output:
-                        if item.type == "function_call":
-                            tool_calls.append(item)
-                    break
-
-            if not tool_calls:
+        stream = await llm.responses.create(
+            model=model_name,
+            instructions=SYSTEM_PROMPT,
+            input=chat_meta.compaction,
+            stream=True,
+            max_output_tokens=max_tokens,
+        )
+        assistant_chunks: list[str] = []
+        yield f"chat_id: {conversation_id}\n\n"
+        async for event in stream:
+            # logger.info(f"{event.type}: {event}")
+            if event.type == "response.output_text.delta":
+                assistant_chunks.append(event.delta)
+                yield f"{event.delta}"
+            elif event.type == "response.completed":
+                logger.info(
+                    "status=%s incomplete_details=%r usage=%r",
+                    event.response.status,
+                    event.response.incomplete_details,
+                    event.response.usage,
+                )
                 break
 
-            for tool in tool_calls:
-                args = json.loads(tool.arguments)
-                await handle_tool(
-                    args["query"], conversation_id, pg, embed_model, chat_meta, tool
-                )
         assistant_message = "".join(assistant_chunks)
         logger.info(
             "LLM response stream completed (conversation_id=%s, response_length=%s)",
