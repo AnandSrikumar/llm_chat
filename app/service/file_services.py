@@ -15,8 +15,10 @@ from docx.text.paragraph import Paragraph
 from fastapi import UploadFile
 from fastapi.concurrency import run_in_threadpool
 from langchain_core.documents import Document as LangchainDoc
-from langchain_text_splitters import (MarkdownHeaderTextSplitter,
-                                      RecursiveCharacterTextSplitter)
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
@@ -25,8 +27,12 @@ from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.splitters import Splitters
 from app.service.chat_service import describe_image
-from app.service.db_queries import (CHUNK_INSERT_QUERY, FILE_INSERT_QUERY,
-                                    FILE_OWNER_QUERY, FILE_STORAGE_ID_QUERY)
+from app.service.db_queries import (
+    CHUNK_INSERT_QUERY,
+    FILE_INSERT_QUERY,
+    FILE_OWNER_QUERY,
+    FILE_STORAGE_ID_QUERY,
+)
 from app.service.text_services import clean_chunks_for_bm25
 from app.storage.storage_base import Storage
 

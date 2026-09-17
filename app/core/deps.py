@@ -7,10 +7,12 @@ from openai import AsyncOpenAI, OpenAI
 from sentence_transformers import SentenceTransformer
 from tiktoken import Encoding
 
+from app.core.config import Settings
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
 from app.core.splitters import Splitters
+from app.llm.llm_initiate import LLMModelObject
 from app.storage.storage_base import Storage
 
 logger = get_logger(__name__)
@@ -18,26 +20,6 @@ logger = get_logger(__name__)
 
 def get_pg(request: Request) -> PgClient:
     return request.app.state.pg
-
-
-def get_llm(request: Request) -> AsyncOpenAI:
-    return request.app.state.llm
-
-
-def get_llm_vision(request: Request) -> AsyncOpenAI:
-    return request.app.state.llm_vision
-
-
-def get_llm_model(request: Request) -> str:
-    return request.app.state.settings.ollama_chat_model
-
-
-def get_llm_vision_model_name(request: Request) -> str:
-    return request.app.state.settings.ollama_vision_model
-
-
-def get_compact_thres(request: Request) -> int:
-    return request.app.state.settings.compact_threshold
 
 
 bearer = HTTPBearer()
@@ -91,10 +73,6 @@ def get_jwt(request: Request):
     return request.app.state.jwt
 
 
-def get_tiktoken(request: Request):
-    return request.app.state.tiktoken_encoding
-
-
 def get_splitters(request: Request):
     return request.app.state.splitters
 
@@ -103,20 +81,18 @@ def get_storage_type(request: Request):
     return request.app.state.storage_type
 
 
-def get_embedding_model(request: Request):
-    return request.app.state.embedding_model
+def get_settings(request: Request):
+    return request.app.state.settings
 
+def get_llm(request: Request):
+    return request.app.state.llm
 
 Pg = Annotated[PgClient, Depends(get_pg)]
-LLM = Annotated[AsyncOpenAI, Depends(get_llm)]
-LLM_VISION = Annotated[OpenAI, Depends(get_llm_vision)]
-LLM_MODEL = Annotated[str, Depends(get_llm_model)]
-LLM_VISION_MODEL = Annotated[str, Depends(get_llm_vision_model_name)]
 USER = Annotated[dict, Depends(get_current_user)]
-COMPACT_THRESHOLD = Annotated[int, Depends(get_compact_thres)]
 JWT_DEP = Annotated[JWT, Depends(get_jwt)]
 PASSWORD_MANAGER = Annotated[PasswordManager, Depends(get_password_manager)]
-TIKTOKEN_ENCODING = Annotated[Encoding, Depends(get_tiktoken)]
 SPLITTERS = Annotated[Splitters, Depends(get_splitters)]
-EMBEDDING_MODEL = Annotated[SentenceTransformer, Depends(get_embedding_model)]
 STORAGE_TYPE = Annotated[Storage, Depends(get_storage_type)]
+SETTINGS=Annotated[Settings, Depends(get_settings)]
+
+LLM = Annotated[dict[str, LLMModelObject], Depends(get_llm)]

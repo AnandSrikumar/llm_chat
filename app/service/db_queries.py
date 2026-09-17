@@ -52,3 +52,17 @@ WHERE f.conversation_id = $2
 ORDER BY c.embedding <=> $1::vector
 LIMIT $3;
 """
+
+UPDATE_CONVERSATION = """
+UPDATE conversations
+            SET
+                messages = $1::jsonb,
+                compaction = $2::jsonb
+            WHERE id = $3
+"""
+
+INSERT_CONVERSATION = """
+insert into conversations
+        (owner_id, convo_name) values 
+        ($1, $2) returning id
+"""

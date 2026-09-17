@@ -10,9 +10,19 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import (COMPACTION_PROMPT, IMAGE_DESCRIBE,
-                              NAME_GENERATOR_PROMPT, SYSTEM_PROMPT)
-from app.service.db_queries import SIMILAR_CHUNKS
+from app.core.prompts import (
+    COMPACTION_PROMPT,
+    IMAGE_DESCRIBE,
+    NAME_GENERATOR_PROMPT,
+    SYSTEM_PROMPT,
+)
+from app.llm.llm_base import LLMBase
+from app.service.db_queries import (
+    INSERT_CONVERSATION,
+    SIMILAR_CHUNKS,
+    UPDATE_CONVERSATION,
+)
+from app.tokenizers.encoders import Encoder
 
 logger = get_logger(__name__)
 
@@ -45,21 +55,25 @@ async def get_chat_meta(pg: PgClient, conversation_id: int | None):
     return ChatMeta(**result)
 
 
-async def create_chat_name(llm: AsyncOpenAI, model_name: str, message: str):
+async def create_chat_name(llm: LLMBase, model_name: str, message: str):
     logger.info(
         "Generating conversation name (model=%s, message_length=%s)",
         model_name,
         len(message),
     )
     try:
-        res = await llm.responses.create(
-            max_output_tokens=500,
+        res = await llm.generate(
+            max_tokens=500,
             model=model_name,
             input=message,
             instructions=NAME_GENERATOR_PROMPT,
         )
     except Exception as e:
-        logger.exception("Conversation name generation failed (model=%s), error: %s", model_name, str(e))
+        logger.exception(
+            "Conversation name generation failed (model=%s), error: %s",
+            model_name,
+            str(e),
+        )
         raise
     logger.info("Conversation name generated")
     return res.output_text
@@ -67,13 +81,8 @@ async def create_chat_name(llm: AsyncOpenAI, model_name: str, message: str):
 
 async def create_conversation(user_id: int, chat_name: str, pg: PgClient):
     logger.info("Persisting new conversation (user_id=%s)", user_id)
-    query = """
-        insert into conversations
-        (owner_id, convo_name) values 
-        ($1, $2) returning id
-    """
     res = await pg.fetchone(
-        query,
+        INSERT_CONVERSATION,
         user_id,
         chat_name,
     )
@@ -89,7 +98,7 @@ async def create_conversation(user_id: int, chat_name: str, pg: PgClient):
 async def count_tokens(
     model_name: str,
     messages: list,
-    encoding: PreTrainedTokenizerBase,
+    encoding: Encoder,
 ) -> int:
     logger.debug(
         "Counting context input tokens (model=%s, item_count=%s)",
@@ -108,7 +117,7 @@ async def count_tokens(
     return tot
 
 
-async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) -> dict:
+async def compact_messages(llm: LLMBase, model_name: str, messages: list) -> dict:
     old_messages = messages[:-6]
     recent_messages = messages[-6:]
     logger.info(
@@ -125,10 +134,10 @@ async def compact_messages(llm: AsyncOpenAI, model_name: str, messages: list) ->
     ]
 
     try:
-        response = await llm.responses.create(
+        response = await llm.generate(
             model=model_name,
             input=summary_input,
-            max_output_tokens=2000,
+            max_output_tokens=4000,
         )
     except Exception:
         logger.exception(
@@ -152,7 +161,7 @@ async def search_rag(
     query: str,
     chat_id: int,
     pg: PgClient,
-    embed_model: SentenceTransformer,
+    embed_model: Encoder,
     top_k: int = 3,
     threshold: float = 0.4,
 ):
@@ -169,7 +178,7 @@ async def search_rag(
 
 
 async def generate_message(
-    llm: AsyncOpenAI,
+    llm: LLMBase,
     model_name: str,
     pg: PgClient,
     conversation_id: int,
@@ -184,12 +193,11 @@ async def generate_message(
         max_tokens,
     )
     try:
-        stream = await llm.responses.create(
+        stream = await llm.stream(
             model=model_name,
-            instructions=SYSTEM_PROMPT,
             input=chat_meta.compaction,
-            stream=True,
-            max_output_tokens=max_tokens,
+            instructions=SYSTEM_PROMPT,
+            max_tokens=max_tokens,
         )
         assistant_chunks: list[str] = []
         yield f"chat_id: {conversation_id}\n\n"
@@ -216,16 +224,9 @@ async def generate_message(
         chat_meta.messages.append({"role": "assistant", "content": assistant_message})
         chat_meta.compaction.append({"role": "assistant", "content": assistant_message})
 
-        query = """
-            UPDATE conversations
-            SET
-                messages = $1::jsonb,
-                compaction = $2::jsonb
-            WHERE id = $3
-        """
         async with pg.transaction() as conn:
             await conn.execute(
-                query,
+                UPDATE_CONVERSATION,
                 json.dumps(chat_meta.messages),
                 json.dumps(chat_meta.compaction),
                 conversation_id,
@@ -253,30 +254,3 @@ def get_conversation_lock(conversation_id: int) -> asyncio.Lock:
         CONVERSATION_LOCKS[conversation_id] = lock
 
     return lock
-
-
-def describe_image(encoded: str, mime_type: str, client: OpenAI, model_name: str):
-    logger.info(f"Loaded image model.....")
-    response = client.chat.completions.create(
-        model=model_name,
-        extra_body={"keep_alive": 0},
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{mime_type};base64,{encoded}",
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": IMAGE_DESCRIBE,
-                    },
-                ],
-            }
-        ],
-    )
-    logger.info(f"Image model unloaded......")
-    return response.choices[0].message.content

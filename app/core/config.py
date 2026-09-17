@@ -1,8 +1,28 @@
-from pydantic import computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    PydanticBaseSettingsSource,
+    YamlConfigSettingsSource,
+)
+
+
+class EncoderConfig(BaseModel):
+    type: str
+    model: str
+
+
+class LLMModelConfig(BaseModel):
+    family: str
+    variants: list[str]
+    host: str
+    encoder: EncoderConfig
+    api_key_env: str
+    vision_model: str | None = None
 
 
 class Settings(BaseSettings):
+    # PostgreSQL
     postgres_host: str
     postgres_port: int
     postgres_user: str
@@ -10,32 +30,59 @@ class Settings(BaseSettings):
     postgres_db: str
     pg_max_size: int
 
-    ollama_host: str
-    ollama_chat_model: str = "qwen3:4b"
-    ollama_vision_model: str = "qwen2.5vl:3b"
-    ollama_key: str
-    ollama_key_vision: str
+    # API keys
+    gemini_api_key: str
+    ministral_api_key: str
+
+    # LLM model registry
+    models: dict[str, LLMModelConfig]
+
+    # Chunking
     chunk_type: str
     chunk_size: int
     chunk_overlap: int
 
-    embedding_model: str
-    embedding_dims: int
-
+    # Application
     compact_threshold: int = 20000
+    max_tokens: int = 2048
 
+    # Storage
     storage_type: str = "local"
     storage_root: str = "./data"
 
+    # Authentication
     SECRET_KEY: str = "EGlS6s24wUVdfXjVkh3U5Yktw9brjEIFWD5nRgK2KXk"
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 600
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+
+        yaml_settings = YamlConfigSettingsSource(
+            settings_cls,
+            "llm_models.yml",
+        )
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            yaml_settings,
+            file_secret_settings,
+        )
 
     @property
     def postgres_dsn(self) -> str:

@@ -1,47 +1,29 @@
 from fastapi.exceptions import HTTPException
 
+from app.core.config import EncoderConfig
 from app.core.log import get_logger
 from app.tokenizers.encoders import Encoder, GeminiEncoder, HuggingFaceEncoder
 
 logger = get_logger(__name__)
 
-_TOKENIZER_MAP = {
-    "qwen3:4b": {
-        "model": "Qwen/Qwen3-4B",
-        "encoder": HuggingFaceEncoder,
-        "api_key": False,
-    },
-    "ministral-3:3b": {
-        "model": "mistralai/Ministral-3-3B-Instruct-2512",
-        "encoder": HuggingFaceEncoder,
-        "api_key": False,
-    },
-    "gemini-2.5-flash": {
-        "model": "gemini-embedding-2",
-        "encoder": GeminiEncoder,
-        "api_key": True,
-    },
-    "gemini-3.8-flash": {
-            "model": "gemini-embedding-2",
-            "encoder": GeminiEncoder,
-            "api_key": True,
-        },
-}
+
+_TOKENIZER_MAP = {"google": {"encoder": GeminiEncoder, "is_api_key": True},
+                  "huggingface": {"encoder": HuggingFaceEncoder, "is_api_key": False}}
 
 
-def get_encoder(model_name: str, api_key: str):
-    logger.info(f"Loading the encoder for chat model: {model_name}")
-    model_encoder_meta: dict = _TOKENIZER_MAP.get(model_name)
+def get_encoder(family: str, api_key: str, encoder_config: EncoderConfig):
+    logger.info(f"Loading the encoder for chat model: {family}")
+    encoder_type = encoder_config.type
+    encoder_model = encoder_config.model
 
-    if not model_encoder_meta:
+    encoder_meta = _TOKENIZER_MAP.get(encoder_type)
+    if not encoder_meta:
         raise HTTPException(status_code=500, detail="encoding model failed to load")
-
-    encoder = model_encoder_meta["encoder"]
-    is_api_key = model_encoder_meta["api_key"]
-    model_encoder = model_encoder_meta["model"]
-
-    logger.info(f"Loading the encoder: {model_encoder}")
+    
+    is_api_key = encoder_meta['is_api_key']
+    encoder_obj: Encoder = encoder_meta['encoder']
+    logger.info(f"Loading the encoder: {encoder_model}")
 
     if is_api_key:
-        return encoder(model_encoder, api_key)
-    return encoder(model_encoder)
+        return encoder_obj(encoder_model, api_key)
+    return encoder_obj(encoder_model)

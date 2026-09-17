@@ -1,0 +1,22 @@
+models:
+  gemini_flash:
+    family: gemini
+    api_key_env: gemini_api_key
+    variants:
+        - gemini-2.5-flash
+        - gemini-3.8-flash 
+    host: https://generativelanguage.googleapis.com/v1beta/openai/
+    encoder:
+      type: google
+      model: gemini-embedding-2
+
+  ministral_3b:
+    family: ministral
+    api_key_env: ministral_api_key
+    variants:
+        - ministral-3:3b
+    vision_model: qwen2.5vl:3b
+    host: http://localhost:11434/v1
+    encoder:
+      type: huggingface
+      model: mistralai/Ministral-3-3B-Instruct-2512
