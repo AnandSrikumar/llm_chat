@@ -6,34 +6,18 @@ from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from sentence_transformers import SentenceTransformer
 
-from app.core.deps import (
-    COMPACT_THRESHOLD,
-    EMBEDDING_MODEL,
-    LLM,
-    LLM_MODEL,
-    LLM_VISION,
-    LLM_VISION_MODEL,
-    SPLITTERS,
-    STORAGE_TYPE,
-    TIKTOKEN_ENCODING,
-    USER,
-    Pg,
-)
+from app.core.deps import (COMPACT_THRESHOLD, EMBEDDING_MODEL, LLM, LLM_MODEL,
+                           LLM_VISION, LLM_VISION_MODEL, SPLITTERS,
+                           STORAGE_TYPE, TIKTOKEN_ENCODING, USER, Pg)
 from app.core.exceptions import LLMGenerationError
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.core.prompts import FILE_DESCRIPTION, IMAGE_DESCRIBE
 from app.core.splitters import Splitters
-from app.service.chat_service import (
-    compact_messages,
-    count_tokens,
-    create_chat_name,
-    create_conversation,
-    generate_message,
-    get_chat_meta,
-    get_conversation_lock,
-    search_rag,
-)
+from app.service.chat_service import (compact_messages, count_tokens,
+                                      create_chat_name, create_conversation,
+                                      generate_message, get_chat_meta,
+                                      get_conversation_lock, search_rag)
 from app.service.file_services import persist_text_file
 from app.storage.storage_base import Storage
 
@@ -105,7 +89,7 @@ async def chat(
     chat_id: int | None = None,
 ):
     if chat_id is None:
-        logger.info("Creating a new conversation for user_id=%s", user["id"])
+        logger.info("Creating a new conversation for user_id=%s with llm_model=%s", user["id"], llm_model)
         name = await create_chat_name(
             llm, llm_model, [{"role": "user", "content": message}]
         )

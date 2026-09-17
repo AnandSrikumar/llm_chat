@@ -2,10 +2,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
-from pgvector.asyncpg import register_vector
-
-
 import asyncpg
+from pgvector.asyncpg import register_vector
 
 from app.core.log import get_logger
 

@@ -8,19 +8,16 @@ from transformers import AutoTokenizer
 from app.api.auth import router as auth_router
 from app.api.chat import router
 from app.core.config import Settings
-from app.core.exceptions import (
-    LLMGenerationError,
-    NotFound,
-    UnsupportedFormatError,
-    llm_generation_error_handler,
-    not_found_handler,
-    unsupported_error_handler,
-)
+from app.core.exceptions import (LLMGenerationError, NotFound,
+                                 UnsupportedFormatError,
+                                 llm_generation_error_handler,
+                                 not_found_handler, unsupported_error_handler)
 from app.core.log import get_logger, initialize_logging, shutdown_logging
 from app.core.pg_client import PgClient
 from app.core.security import JWT, PasswordManager
 from app.core.splitters import create_splitters
 from app.storage.storage_factory import create_storage
+from app.tokenizers.encoder_factory import get_encoder
 
 logger = get_logger(__name__)
 
@@ -49,17 +46,18 @@ def app_state(app: FastAPI, settings: Settings):
     )
     app.state.pwd = pwd
     app.state.jwt = jwt
+    logger.info(f"Loading openai host: {settings.ollama_host}")
     app.state.llm = AsyncOpenAI(
-        base_url=f"{settings.ollama_host}/v1",
-        api_key="ollama",
+        base_url=f"{settings.ollama_host}",
+        api_key=settings.ollama_key,
     )
     app.state.llm_vision = OpenAI(
-        base_url=f"{settings.ollama_host}/v1",
-        api_key="ollama",
+        base_url=f"{settings.ollama_host}",
+        api_key=settings.ollama_key_vision,
     )
 
-    app.state.tiktoken_encoding = AutoTokenizer.from_pretrained(
-        settings.ollama_tokenizer
+    app.state.tiktoken_encoding = get_encoder(
+        settings.ollama_chat_model, settings.ollama_key
     )
     app.state.splitters = create_splitters(settings.chunk_size, settings.chunk_overlap)
     app.state.embedding_model = SentenceTransformer(settings.embedding_model)

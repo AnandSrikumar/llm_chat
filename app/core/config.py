@@ -1,12 +1,6 @@
 from pydantic import computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_TOKENIZER_MAP = {
-    "qwen3:4b": "Qwen/Qwen3-4B",
-    "ministral:3b": "mistralai/Ministral-3-3B-Instruct-2512",
-    "ministral-3:3b": "mistralai/Ministral-3-3B-Instruct-2512",
-}
-
 
 class Settings(BaseSettings):
     postgres_host: str
@@ -19,6 +13,8 @@ class Settings(BaseSettings):
     ollama_host: str
     ollama_chat_model: str = "qwen3:4b"
     ollama_vision_model: str = "qwen2.5vl:3b"
+    ollama_key: str
+    ollama_key_vision: str
     chunk_type: str
     chunk_size: int
     chunk_overlap: int
@@ -49,14 +45,3 @@ class Settings(BaseSettings):
             f"@{self.postgres_host}:{self.postgres_port}"
             f"/{self.postgres_db}"
         )
-
-    @computed_field
-    @property
-    def ollama_tokenizer(self) -> str:
-        try:
-            return _TOKENIZER_MAP[self.ollama_chat_model]
-        except KeyError:
-            raise ValueError(
-                f"No tokenizer configured for Ollama model: "
-                f"{self.ollama_chat_model}"
-            )

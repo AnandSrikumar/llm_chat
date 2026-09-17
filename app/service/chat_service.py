@@ -10,12 +10,8 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import (
-    COMPACTION_PROMPT,
-    IMAGE_DESCRIBE,
-    NAME_GENERATOR_PROMPT,
-    SYSTEM_PROMPT,
-)
+from app.core.prompts import (COMPACTION_PROMPT, IMAGE_DESCRIBE,
+                              NAME_GENERATOR_PROMPT, SYSTEM_PROMPT)
 from app.service.db_queries import SIMILAR_CHUNKS
 
 logger = get_logger(__name__)
@@ -62,8 +58,8 @@ async def create_chat_name(llm: AsyncOpenAI, model_name: str, message: str):
             input=message,
             instructions=NAME_GENERATOR_PROMPT,
         )
-    except Exception:
-        logger.exception("Conversation name generation failed (model=%s)", model_name)
+    except Exception as e:
+        logger.exception("Conversation name generation failed (model=%s), error: %s", model_name, str(e))
         raise
     logger.info("Conversation name generated")
     return res.output_text
