@@ -16,16 +16,14 @@ class Encoder(ABC):
 class HuggingFaceEncoder(Encoder):
 
     def __init__(self, model_name: str):
-        from transformers import AutoTokenizer
+        from sentence_transformers import SentenceTransformer
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = SentenceTransformer(model_name)
         logger.info(f"Huggingface encoder loaded")
 
     def encode(self, texts: list[str]):
         return self.tokenizer(
             texts,
-            padding=True,
-            truncation=True,
             batch_size=32,
             normalize_embeddings=True,
             show_progress_bar=False,

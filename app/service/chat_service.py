@@ -165,7 +165,7 @@ async def search_rag(
     top_k: int = 3,
     threshold: float = 0.4,
 ):
-    embeds = embed_model.encode(query)
+    embeds = embed_model.encode([query])
     similar = await pg.fetch(SIMILAR_CHUNKS, embeds, chat_id, top_k)
     context = []
     for c in similar:
