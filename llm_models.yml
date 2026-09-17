@@ -19,4 +19,4 @@ models:
     host: http://localhost:11434/v1
     encoder:
       type: huggingface
-      model: mistralai/Ministral-3-3B-Instruct-2512
+      model: sentence-transformers/all-MiniLM-L6-v2

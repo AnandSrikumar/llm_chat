@@ -19,10 +19,10 @@ class HuggingFaceEncoder(Encoder):
         from sentence_transformers import SentenceTransformer
 
         self.model = SentenceTransformer(model_name)
-        logger.info(f"Huggingface encoder loaded")
+        logger.info(f"Huggingface encoder loaded: {model_name}")
 
     def encode(self, texts: list[str]):
-        return self.tokenizer(
+        return self.model.encode(
             texts,
             batch_size=32,
             normalize_embeddings=True,
