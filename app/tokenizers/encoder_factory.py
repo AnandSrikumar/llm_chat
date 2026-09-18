@@ -7,7 +7,7 @@ from app.tokenizers.encoders import Encoder, GeminiEncoder, HuggingFaceEncoder
 logger = get_logger(__name__)
 
 
-_TOKENIZER_MAP = {"google": {"encoder": GeminiEncoder, "is_api_key": True},
+_ENCODER_MAP = {"google": {"encoder": GeminiEncoder, "is_api_key": True},
                   "huggingface": {"encoder": HuggingFaceEncoder, "is_api_key": False}}
 
 
@@ -15,8 +15,9 @@ def get_encoder(family: str, api_key: str, encoder_config: EncoderConfig):
     logger.info(f"Loading the encoder for chat model: {family}")
     encoder_type = encoder_config.type
     encoder_model = encoder_config.model
+    tokenizer = encoder_config.tokenizer
 
-    encoder_meta = _TOKENIZER_MAP.get(encoder_type)
+    encoder_meta = _ENCODER_MAP.get(encoder_type)
     if not encoder_meta:
         raise HTTPException(status_code=500, detail="encoding model failed to load")
     
@@ -25,5 +26,5 @@ def get_encoder(family: str, api_key: str, encoder_config: EncoderConfig):
     logger.info(f"Loading the encoder: {encoder_model}")
 
     if is_api_key:
-        return encoder_obj(encoder_model, api_key)
-    return encoder_obj(encoder_model)
+        return encoder_obj(encoder_model, api_key, tokenizer)
+    return encoder_obj(encoder_model, tokenizer)

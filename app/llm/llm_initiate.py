@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.core.config import LLMModelConfig, Settings
+from app.llm.google_llm import GoogleGenAILLM
 from app.llm.llm_base import LLMBase
 from app.llm.openai_llm import OpenAILLM
 from app.tokenizers.encoder_factory import get_encoder
@@ -9,7 +10,7 @@ from app.tokenizers.encoders import Encoder
 from app.core.log import get_logger
 logger = get_logger(__name__)
 
-_LLM_FAMILY_MAP = {"ministral": OpenAILLM}
+_LLM_FAMILY_MAP = {"ministral": OpenAILLM, "gemini": GoogleGenAILLM}
 
 
 @dataclass

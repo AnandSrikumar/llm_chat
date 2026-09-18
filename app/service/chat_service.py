@@ -76,7 +76,7 @@ async def create_chat_name(llm: LLMBase, model_name: str, message: str):
         )
         raise
     logger.info("Conversation name generated")
-    return res.output_text
+    return res
 
 
 async def create_conversation(user_id: int, chat_name: str, pg: PgClient):
@@ -145,7 +145,7 @@ async def compact_messages(llm: LLMBase, model_name: str, messages: list) -> dic
         )
         raise
 
-    summary = response.output_text
+    summary = response
     logger.info("Conversation context compaction completed")
 
     return [
@@ -192,28 +192,17 @@ async def generate_message(
         model_name,
         max_tokens,
     )
-    try:
-        stream = await llm.stream(
-            model=model_name,
-            input=chat_meta.compaction,
-            instructions=SYSTEM_PROMPT,
-            max_tokens=max_tokens,
-        )
+    try:        
         assistant_chunks: list[str] = []
         yield f"chat_id: {conversation_id}\n\n"
-        async for event in stream:
-            # logger.info(f"{event.type}: {event}")
-            if event.type == "response.output_text.delta":
-                assistant_chunks.append(event.delta)
-                yield f"{event.delta}"
-            elif event.type == "response.completed":
-                logger.info(
-                    "status=%s incomplete_details=%r usage=%r",
-                    event.response.status,
-                    event.response.incomplete_details,
-                    event.response.usage,
-                )
-                break
+        async for chunk in llm.stream(
+                    model=model_name,
+                    input=chat_meta.compaction,
+                    instructions=SYSTEM_PROMPT,
+                    max_tokens=max_tokens,
+                ):
+            assistant_chunks.append(chunk)
+            yield chunk
 
         assistant_message = "".join(assistant_chunks)
         logger.info(

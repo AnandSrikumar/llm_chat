@@ -5,10 +5,12 @@ models:
     variants:
         - gemini-2.5-flash
         - gemini-3.8-flash 
-    host: https://generativelanguage.googleapis.com/v1beta/openai/
+        - gemini-3.6-flash
+    host: https://generativelanguage.googleapis.com
     encoder:
       type: google
       model: gemini-embedding-2
+      tokenizer: gemini-embedding-2
 
   ministral_3b:
     family: ministral
@@ -20,3 +22,4 @@ models:
     encoder:
       type: huggingface
       model: sentence-transformers/all-MiniLM-L6-v2
+      tokenizer: "mistralai/Ministral-3-3B-Instruct-2512"

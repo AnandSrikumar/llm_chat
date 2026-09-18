@@ -79,7 +79,7 @@ class OpenAILLM(LLMBase):
                 response.usage,
             )
 
-            return response
+            return response.output_text
         except Exception as e:
             logger.error(f"OpenAI generation failed: {e}")
             raise

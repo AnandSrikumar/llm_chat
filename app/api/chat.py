@@ -21,6 +21,7 @@ from app.core.prompts import FILE_DESCRIPTION, IMAGE_DESCRIBE
 from app.core.splitters import Splitters
 from app.llm.llm_base import LLMBase
 from app.service.chat_service import (
+    ChatMeta,
     compact_messages,
     count_tokens,
     create_chat_name,
@@ -34,6 +35,7 @@ from app.service.chat_service import (
 from app.llm.openai_llm import OpenAILLM
 
 from app.storage.storage_base import Storage
+from app.tokenizers.encoders import Encoder
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -57,6 +59,16 @@ async def _create_conversation(user: dict,
     )
     return chat_id
 
+async def _prepare_chat_history(pg: PgClient, chat_id: int, message: str) -> ChatMeta:
+    persisted_chat = await get_chat_meta(pg, chat_id)
+    persisted_chat.compaction.append({"role": "user", "content": message})
+    persisted_chat.messages.append({"role": "user", "content": message})
+    return persisted_chat
+
+def _count_tokens(encoder: Encoder, compaction: list[dict]):
+    texts = [msg['content'] for msg in compaction]
+    return encoder.count_tokens(texts)
+
 
 @router.post("/v1/chat")
 async def chat(
@@ -77,7 +89,7 @@ async def chat(
     model_obj = llm[llm_model].llm_object
     encoder_obj = llm[llm_model].encoding_object
 
-    if chat_id is None:
+    if chat_id is None:         
          chat_id = await _create_conversation(user, pg, model_obj, llm_model, message)
 
     lock = get_conversation_lock(chat_id)
@@ -85,14 +97,31 @@ async def chat(
         raise LLMGenerationError()
     await lock.acquire()
 
-    try:
-        user_messages = []
-        rag_context = await search_rag(message, chat_id, pg, encoder_obj)
+    try:        
+        persisted_chat = await _prepare_chat_history(pg, chat_id, message)
+        if _count_tokens(encoder_obj, persisted_chat.compaction) > settings.compact_threshold:
+            logger.info(f"conversation is compacting...")
+            persisted_chat.compaction = await compact_messages(model_obj, llm_model, persisted_chat.compaction)
+        
 
     except Exception as e:
         logger.error(f"LLM chat failed: {e}")
         lock.release()
         raise
+ 
+    return StreamingResponse(
+        generate_message(model_obj, 
+                         llm_model, 
+                         pg, 
+                         chat_id, 
+                         persisted_chat, 
+                         settings.max_tokens, 
+                         lock),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
-    
-    return {"status": "ok"}

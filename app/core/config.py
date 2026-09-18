@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 from pydantic_settings import (
     BaseSettings,
@@ -10,6 +12,7 @@ from pydantic_settings import (
 class EncoderConfig(BaseModel):
     type: str
     model: str
+    tokenizer: Optional[str] = None
 
 
 class LLMModelConfig(BaseModel):
