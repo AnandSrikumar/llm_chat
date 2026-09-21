@@ -84,8 +84,10 @@ def get_storage_type(request: Request):
 def get_settings(request: Request):
     return request.app.state.settings
 
+
 def get_llm(request: Request):
     return request.app.state.llm
+
 
 Pg = Annotated[PgClient, Depends(get_pg)]
 USER = Annotated[dict, Depends(get_current_user)]
@@ -93,6 +95,6 @@ JWT_DEP = Annotated[JWT, Depends(get_jwt)]
 PASSWORD_MANAGER = Annotated[PasswordManager, Depends(get_password_manager)]
 SPLITTERS = Annotated[Splitters, Depends(get_splitters)]
 STORAGE_TYPE = Annotated[Storage, Depends(get_storage_type)]
-SETTINGS=Annotated[Settings, Depends(get_settings)]
+SETTINGS = Annotated[Settings, Depends(get_settings)]
 
 LLM = Annotated[dict[str, LLMModelObject], Depends(get_llm)]

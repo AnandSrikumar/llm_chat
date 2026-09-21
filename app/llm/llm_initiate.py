@@ -1,23 +1,26 @@
 from dataclasses import dataclass
+from typing import Optional
 
 from app.core.config import LLMModelConfig, Settings
+from app.core.log import get_logger
 from app.llm.google_llm import GoogleGenAILLM
 from app.llm.llm_base import LLMBase
 from app.llm.openai_llm import OpenAILLM
 from app.tokenizers.encoder_factory import get_encoder
 from app.tokenizers.encoders import Encoder
 
-from app.core.log import get_logger
 logger = get_logger(__name__)
 
 _LLM_FAMILY_MAP = {"ministral": OpenAILLM, "gemini": GoogleGenAILLM}
 
 
 @dataclass
-class LLMModelObject:    
+class LLMModelObject:
     llm_object: LLMBase
     encoding_object: Encoder
-    
+    vision_model_name: Optional[str] = None
+
+
 def create_llm_object(settings: Settings):
     model_map = {}
     models: dict[str, LLMModelConfig] = settings.models
@@ -29,8 +32,12 @@ def create_llm_object(settings: Settings):
             continue
         api_key = getattr(settings, model.api_key_env)
         llm_obj = _LLM_FAMILY_MAP[family](model.host, api_key)
-        
+        vision_model_name = model.vision_model
         encoder = get_encoder(family, api_key, model.encoder)
         for varient in model.variants:
-            model_map[varient] = LLMModelObject(llm_object=llm_obj, encoding_object=encoder)
+            model_map[varient] = LLMModelObject(
+                llm_object=llm_obj,
+                encoding_object=encoder,
+                vision_model_name=vision_model_name,
+            )
     return model_map

@@ -2,10 +2,9 @@ import base64
 
 from openai import AsyncOpenAI
 
+from app.core.log import get_logger
 from app.core.prompts import IMAGE_DESCRIBE
 from app.llm.llm_base import LLMBase
-
-from app.core.log import get_logger
 
 logger = get_logger(__name__)
 

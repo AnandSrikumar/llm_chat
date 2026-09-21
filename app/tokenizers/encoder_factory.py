@@ -7,8 +7,10 @@ from app.tokenizers.encoders import Encoder, GeminiEncoder, HuggingFaceEncoder
 logger = get_logger(__name__)
 
 
-_ENCODER_MAP = {"google": {"encoder": GeminiEncoder, "is_api_key": True},
-                  "huggingface": {"encoder": HuggingFaceEncoder, "is_api_key": False}}
+_ENCODER_MAP = {
+    "google": {"encoder": GeminiEncoder, "is_api_key": True},
+    "huggingface": {"encoder": HuggingFaceEncoder, "is_api_key": False},
+}
 
 
 def get_encoder(family: str, api_key: str, encoder_config: EncoderConfig):
@@ -20,9 +22,9 @@ def get_encoder(family: str, api_key: str, encoder_config: EncoderConfig):
     encoder_meta = _ENCODER_MAP.get(encoder_type)
     if not encoder_meta:
         raise HTTPException(status_code=500, detail="encoding model failed to load")
-    
-    is_api_key = encoder_meta['is_api_key']
-    encoder_obj: Encoder = encoder_meta['encoder']
+
+    is_api_key = encoder_meta["is_api_key"]
+    encoder_obj: Encoder = encoder_meta["encoder"]
     logger.info(f"Loading the encoder: {encoder_model}")
 
     if is_api_key:

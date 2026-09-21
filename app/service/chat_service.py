@@ -10,18 +10,11 @@ from transformers import PreTrainedTokenizerBase
 
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
-from app.core.prompts import (
-    COMPACTION_PROMPT,
-    IMAGE_DESCRIBE,
-    NAME_GENERATOR_PROMPT,
-    SYSTEM_PROMPT,
-)
+from app.core.prompts import (COMPACTION_PROMPT, IMAGE_DESCRIBE,
+                              NAME_GENERATOR_PROMPT, SYSTEM_PROMPT)
 from app.llm.llm_base import LLMBase
-from app.service.db_queries import (
-    INSERT_CONVERSATION,
-    SIMILAR_CHUNKS,
-    UPDATE_CONVERSATION,
-)
+from app.service.db_queries import (INSERT_CONVERSATION, SIMILAR_CHUNKS,
+                                    UPDATE_CONVERSATION)
 from app.tokenizers.encoders import Encoder
 
 logger = get_logger(__name__)
@@ -192,15 +185,15 @@ async def generate_message(
         model_name,
         max_tokens,
     )
-    try:        
+    try:
         assistant_chunks: list[str] = []
         yield f"chat_id: {conversation_id}\n\n"
         async for chunk in llm.stream(
-                    model=model_name,
-                    input=chat_meta.compaction,
-                    instructions=SYSTEM_PROMPT,
-                    max_tokens=max_tokens,
-                ):
+            model=model_name,
+            input=chat_meta.compaction,
+            instructions=SYSTEM_PROMPT,
+            max_tokens=max_tokens,
+        ):
             assistant_chunks.append(chunk)
             yield chunk
 

@@ -1,12 +1,8 @@
 from typing import Optional
 
 from pydantic import BaseModel
-from pydantic_settings import (
-    BaseSettings,
-    SettingsConfigDict,
-    PydanticBaseSettingsSource,
-    YamlConfigSettingsSource,
-)
+from pydantic_settings import (BaseSettings, PydanticBaseSettingsSource,
+                               SettingsConfigDict, YamlConfigSettingsSource)
 
 
 class EncoderConfig(BaseModel):

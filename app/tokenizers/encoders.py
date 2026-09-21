@@ -48,10 +48,7 @@ class HuggingFaceEncoder(Encoder):
         ]
 
     def count_tokens(self, texts: list[str]) -> int:
-        return sum(
-            len(tokens)
-            for tokens in self.tokenize(texts)
-        )
+        return sum(len(tokens) for tokens in self.tokenize(texts))
 
 
 class GeminiEncoder(Encoder):

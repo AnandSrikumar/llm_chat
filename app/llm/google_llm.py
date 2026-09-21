@@ -1,4 +1,5 @@
 from typing import AsyncGenerator
+
 from google import genai
 from google.genai import types
 
@@ -13,7 +14,7 @@ class GoogleGenAILLM(LLMBase):
     def __init__(self, host: str | None = None, key: str | None = None):
         super().__init__(host, key)
         logger.info(f"Creating Google GenAI LLM client i.e gemini, host:{host}")
-        
+
         # Initialize client with api_key; host can be passed via http_options if using custom endpoints
         http_options = types.HttpOptions(base_url=host) if host else None
         self.client = genai.Client(api_key=key, http_options=http_options)
@@ -27,11 +28,15 @@ class GoogleGenAILLM(LLMBase):
         extra_body: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         logger.info(f"Streaming Google GenAI response with model: {model}")
-        
+
         # Build prompt contents and configuration
         contents = [
-        types.Content(
-                role="model" if msg.get("role") == "assistant" else msg.get("role", "user"),
+            types.Content(
+                role=(
+                    "model"
+                    if msg.get("role") == "assistant"
+                    else msg.get("role", "user")
+                ),
                 parts=[types.Part.from_text(text=msg["content"])],
             )
             for msg in input
@@ -69,7 +74,11 @@ class GoogleGenAILLM(LLMBase):
 
         contents = [
             types.Content(
-                role="model" if msg.get("role") == "assistant" else msg.get("role", "user"),
+                role=(
+                    "model"
+                    if msg.get("role") == "assistant"
+                    else msg.get("role", "user")
+                ),
                 parts=[types.Part.from_text(text=msg["content"])],
             )
             for msg in input
@@ -107,7 +116,7 @@ class GoogleGenAILLM(LLMBase):
         try:
             # Pass image directly as Part bytes without needing base64 encoding
             image_part = types.Part.from_bytes(data=image, mime_type=mime_type)
-            
+
             contents = [image_part, IMAGE_DESCRIBE]
 
             response = await self.client.aio.models.generate_content(
