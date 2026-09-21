@@ -18,6 +18,8 @@ _LLM_FAMILY_MAP = {"ministral": OpenAILLM, "gemini": GoogleGenAILLM}
 class LLMModelObject:
     llm_object: LLMBase
     encoding_object: Encoder
+    model_name: str
+    encoding_model_name: str
     vision_model_name: Optional[str] = None
 
 
@@ -39,5 +41,7 @@ def create_llm_object(settings: Settings):
                 llm_object=llm_obj,
                 encoding_object=encoder,
                 vision_model_name=vision_model_name,
+                model_name=varient,
+                encoding_model_name=model.encoder.model
             )
     return model_map

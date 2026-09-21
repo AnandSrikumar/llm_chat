@@ -16,10 +16,17 @@ from app.core.splitters import Splitters
 from app.llm.llm_base import LLMBase
 from app.llm.llm_initiate import LLMModelObject
 from app.llm.openai_llm import OpenAILLM
-from app.service.chat_service import (ChatMeta, compact_messages, count_tokens,
-                                      create_chat_name, create_conversation,
-                                      generate_message, get_chat_meta,
-                                      get_conversation_lock, search_rag)
+from app.service.chat_service import (
+    ChatMeta,
+    compact_messages,
+    count_tokens,
+    create_chat_name,
+    create_conversation,
+    generate_message,
+    get_chat_meta,
+    get_conversation_lock,
+    search_rag,
+)
 from app.service.file_operations import file_pipeline
 from app.storage.storage_base import Storage
 from app.tokenizers.encoders import Encoder
@@ -53,6 +60,7 @@ async def _prepare_chat_history(pg: PgClient, chat_id: int, message: str) -> Cha
 
 
 def _count_tokens(encoder: Encoder, compaction: list[dict]):
+    logger.info(f"counting tokens of: {compaction}")
     texts = [msg["content"] for msg in compaction]
     return encoder.count_tokens(texts)
 
@@ -66,7 +74,7 @@ async def _handle_files(
     pg: PgClient,
 ) -> str | None:
     if not files:
-        return None
+        return ""
 
     logger.info(
         "Processing %s uploaded files for conversation_id=%s",
@@ -126,17 +134,18 @@ async def chat(
 
     try:
         file_context = await _handle_files(
-            files, chat_id, settings, storage_type, llm, pg
+            files, chat_id, settings, storage_type, llm[llm_model], pg
         )
 
-        persisted_chat = await _prepare_chat_history(pg, chat_id, message)
-        persisted_chat.compaction.append({"role": "user", "content": file_context})
-        persisted_chat.messages.append({"role": "user", "content": file_context})
-
         rag_context = await search_rag(message, chat_id, pg, encoder_obj)
+        persisted_chat = await _prepare_chat_history(pg, chat_id, message)
 
         persisted_chat.compaction.append({"role": "user", "content": rag_context})
         persisted_chat.messages.append({"role": "user", "content": rag_context})
+
+
+        persisted_chat.compaction.append({"role": "user", "content": file_context})
+        persisted_chat.messages.append({"role": "user", "content": file_context})
         if (
             _count_tokens(encoder_obj, persisted_chat.compaction)
             > settings.compact_threshold

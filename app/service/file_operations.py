@@ -12,8 +12,12 @@ from app.core.exceptions import NotFound
 from app.core.log import get_logger
 from app.core.pg_client import PgClient
 from app.llm.llm_initiate import LLMModelObject
-from app.service.db_queries import (CHUNK_INSERT_QUERY, FILE_INSERT_QUERY,
-                                    FILE_OWNER_QUERY, FILE_STORAGE_ID_QUERY)
+from app.service.db_queries import (
+    CHUNK_INSERT_QUERY,
+    FILE_INSERT_QUERY,
+    FILE_OWNER_QUERY,
+    FILE_STORAGE_ID_QUERY,
+)
 from app.service.text_services import clean_chunks_for_bm25
 from app.storage.storage_base import Storage
 
@@ -107,16 +111,30 @@ async def _insert_file(
     return {"file_id": res["id"], "owner": dir_res["username"]}
 
 
-async def _insert_chunk(file_obj: FileObject, file_id, conn: asyncpg.Connection):
+async def _insert_chunk(
+    file_obj: FileObject,
+    file_id,
+    conn: asyncpg.Connection,
+    llm: LLMModelObject,
+):
     chunks = file_obj.chunks
     cleaned_chunks = file_obj.cleaned_chunks
     embeds = file_obj.embeds
+
     records = [
-        (file_id, idx, chunk.page_content, cleaned_chunk.page_content, embedding)
+        (
+            file_id,
+            idx,
+            chunk.page_content,
+            cleaned_chunk.page_content,
+            embedding,
+            llm.encoding_model_name                        
+        )
         for idx, (chunk, cleaned_chunk, embedding) in enumerate(
             zip(chunks, cleaned_chunks, embeds)
         )
     ]
+
     await conn.executemany(CHUNK_INSERT_QUERY, records)
 
 
@@ -125,7 +143,7 @@ async def file_pipeline(
     file: UploadFile,
     settings: Settings,
     storage: Storage,
-    llm: LLMModelObject,
+    llm: LLMModelObject,    
     pg: PgClient,
 ):
     try:
@@ -134,11 +152,11 @@ async def file_pipeline(
         logger.info(f"file object created for {chat_id} filename:{file.filename}")
         async with pg.transaction() as conn:
             file_insert_meta = await _insert_file(file_object, chat_id, storage, conn)
-            _ = await _insert_chunk(file_object, file_insert_meta["file_id"], conn)
+            _ = await _insert_chunk(file_object, file_insert_meta["file_id"], conn, llm)
             storage_key = await storage.save_file(
                 file_object.data,
                 file_object.filename,
-                file_insert_meta["username"],
+                file_insert_meta["owner"],
                 chat_id,
             )
             logger.info(

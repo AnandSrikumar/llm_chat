@@ -1,7 +1,9 @@
 import pymupdf
 import pymupdf4llm
-from langchain_text_splitters import (MarkdownHeaderTextSplitter,
-                                      RecursiveCharacterTextSplitter)
+from langchain_text_splitters import (
+    MarkdownHeaderTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 
 from app.chunkers.chunk_base import SyncChunker
 from app.core.config import Settings

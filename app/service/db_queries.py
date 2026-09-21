@@ -29,9 +29,10 @@ INSERT INTO chunks (
     chunk_index,
     chunk_text,
     cleaned_chunk_text,
-    embedding
+    embedding,
+    embedding_model_name
 )
-VALUES ($1, $2, $3, $4, $5)
+VALUES ($1, $2, $3, $4, $5, $6)
 
 """
 

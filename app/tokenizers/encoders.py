@@ -11,7 +11,13 @@ logger = get_logger(__name__)
 class Encoder(ABC):
 
     @abstractmethod
-    def encode(self, texts: list[str]): ...
+    def encode(
+        self,
+        texts: list[str],
+        batch_size,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    ): ...
 
     @abstractmethod
     def tokenize(self, texts: list[str]): ...
@@ -30,12 +36,18 @@ class HuggingFaceEncoder(Encoder):
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_model)
         logger.info(f"Huggingface encoder loaded: {model_name}")
 
-    def encode(self, texts: list[str]):
+    def encode(
+        self,
+        texts: list[str],
+        batch_size=32,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    ):
         return self.model.encode(
             texts,
-            batch_size=32,
-            normalize_embeddings=True,
-            show_progress_bar=False,
+            batch_size=batch_size,
+            normalize_embeddings=normalize_embeddings,
+            show_progress_bar=show_progress_bar,
         )
 
     def tokenize(self, texts: list[str]):
@@ -59,7 +71,13 @@ class GeminiEncoder(Encoder):
         self.tokenizer = tokenizer
         logger.info(f"Gemini encoder loaded")
 
-    def encode(self, texts: list[str]):
+    def encode(
+        self,
+        texts: list[str],
+        batch_size=32,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+    ):
         response = self.client.models.embed_content(
             model=self.model,
             contents=texts,

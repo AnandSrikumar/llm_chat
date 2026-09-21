@@ -1,8 +1,12 @@
 from typing import Optional
 
 from pydantic import BaseModel
-from pydantic_settings import (BaseSettings, PydanticBaseSettingsSource,
-                               SettingsConfigDict, YamlConfigSettingsSource)
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 
 class EncoderConfig(BaseModel):
@@ -43,7 +47,7 @@ class Settings(BaseSettings):
 
     # Application
     compact_threshold: int = 20000
-    max_tokens: int = 2048
+    max_tokens: int | None = None
 
     # Storage
     storage_type: str = "local"

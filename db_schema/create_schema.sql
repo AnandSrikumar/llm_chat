@@ -93,8 +93,9 @@ CREATE TABLE IF NOT EXISTS chunks (
     chunk_index INTEGER NOT NULL,
     chunk_text TEXT NOT NULL,
     cleaned_chunk_text TEXT NOT NULL,
-
-    embedding VECTOR(384),
+    
+    embedding VECTOR,
+    embedding_model_name text,
 
     CONSTRAINT fk_chunks_file
         FOREIGN KEY (file_id)

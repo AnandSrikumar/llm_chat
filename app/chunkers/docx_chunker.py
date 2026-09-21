@@ -35,7 +35,7 @@ class DocxChunker(SyncChunker):
             elif child.tag.endswith("}tbl"):
                 yield Table(child, parent)
 
-    def _chunk_docx(
+    def chunk(
         self,
         file_data: bytes,
     ):
